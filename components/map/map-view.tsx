@@ -1,0 +1,100 @@
+"use client";
+
+import { useMemo } from "react";
+import Link from "next/link";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import type { NearbyCombo } from "@/lib/domain/combo";
+
+// Bundlers break Leaflet's default marker icon path resolution — point it at
+// the CDN copies instead of trying to wire up local asset imports.
+const defaultIcon = L.icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+});
+
+const userIcon = L.divIcon({
+  className: "",
+  html: '<div style="width:16px;height:16px;border-radius:9999px;background:oklch(0.627 0.194 149.214);border:3px solid white;box-shadow:0 0 0 2px oklch(0.627 0.194 149.214 / 40%)"></div>',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
+
+interface StoreGroup {
+  storeId: string;
+  storeName: string;
+  lat: number;
+  lng: number;
+  combos: NearbyCombo[];
+}
+
+export function MapView({
+  combos,
+  storeLocations,
+  center,
+}: {
+  combos: NearbyCombo[];
+  storeLocations: Record<string, { lat: number; lng: number }>;
+  center: { lat: number; lng: number };
+}) {
+  const groups = useMemo(() => {
+    const byStore = new Map<string, StoreGroup>();
+    for (const combo of combos) {
+      const location = storeLocations[combo.storeId];
+      if (!location) continue;
+      const existing = byStore.get(combo.storeId);
+      if (existing) {
+        existing.combos.push(combo);
+      } else {
+        byStore.set(combo.storeId, {
+          storeId: combo.storeId,
+          storeName: combo.storeName,
+          lat: location.lat,
+          lng: location.lng,
+          combos: [combo],
+        });
+      }
+    }
+    return Array.from(byStore.values());
+  }, [combos, storeLocations]);
+
+  return (
+    <MapContainer
+      center={[center.lat, center.lng]}
+      zoom={14}
+      scrollWheelZoom
+      className="h-full w-full"
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      <Marker position={[center.lat, center.lng]} icon={userIcon}>
+        <Popup>Vị trí của bạn</Popup>
+      </Marker>
+      {groups.map((group) => (
+        <Marker key={group.storeId} position={[group.lat, group.lng]} icon={defaultIcon}>
+          <Popup>
+            <div className="space-y-1">
+              <p className="font-semibold">{group.storeName}</p>
+              <ul className="space-y-0.5">
+                {group.combos.map((combo) => (
+                  <li key={combo.comboId}>
+                    <Link href={`/combos/${combo.comboId}`} className="text-primary hover:underline">
+                      {combo.name} — {combo.currentPrice.toLocaleString("vi-VN")}đ
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+    </MapContainer>
+  );
+}
