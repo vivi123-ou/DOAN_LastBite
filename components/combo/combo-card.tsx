@@ -21,14 +21,14 @@ function formatBestBefore(iso: string): string {
 
 interface ComboCardProps {
   combo: NearbyCombo;
-  // Contextual label matching whichever tab/section the card was pulled
-  // from (e.g. "Gần bạn nhất", "Mới nhất") — inbook.vn's cards use the same
-  // idea (an orange "Bán Chạy" tag on their bestsellers row) rather than a
-  // single generic badge, so a viewer always knows *why* a card is showing.
-  tag?: string;
 }
 
-export function ComboCard({ combo, tag }: ComboCardProps) {
+// No contextual "which section is this from" badge on the card itself —
+// tried that (inbook.vn's "Bán Chạy" tag was the reference) and it read as
+// redundant/buggy-looking wherever the card already sits under its own
+// section heading (carousel rows, the search-results list) — the heading
+// says it once, the card doesn't need to repeat it.
+export function ComboCard({ combo }: ComboCardProps) {
   const discountPct = Math.round(
     (1 - combo.currentPrice / Math.max(combo.originalPrice, 1)) * 100
   );
@@ -52,11 +52,6 @@ export function ComboCard({ combo, tag }: ComboCardProps) {
           {/* Soft fade into the card's own background instead of a hard cut
               from photo to text. */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card to-transparent" />
-          {tag && (
-            <Badge variant="secondary" className="absolute left-2 top-2 shadow-sm">
-              {tag}
-            </Badge>
-          )}
           {discountPct > 0 && (
             <Badge className="absolute right-2 top-2 shadow-sm">-{discountPct}%</Badge>
           )}

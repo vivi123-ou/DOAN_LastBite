@@ -35,6 +35,7 @@ export default async function HomePage({
   ]);
   const topCategoryIds = userId ? await getTopPurchasedCategoryIds(supabase, userId, 1) : [];
   const recommendedCategoryId = topCategoryIds[0];
+  const categoryName = categoryId ? categories.find((c) => c.id === categoryId)?.name : undefined;
 
   return (
     <div className="mx-auto max-w-6xl space-y-10 px-4 py-8">
@@ -81,11 +82,9 @@ export default async function HomePage({
           filters.tsx, header), or a category pill above all switch this
           from the "Tất cả" browse view to filtered search results. */}
       {isFiltered ? (
-        <section className="space-y-3">
-          <Suspense>
-            <SearchResultsSection />
-          </Suspense>
-        </section>
+        <Suspense>
+          <SearchResultsSection categoryName={categoryName} />
+        </Suspense>
       ) : (
         <Suspense>
           <ComboSections recommendedCategoryId={recommendedCategoryId} categories={categories} />

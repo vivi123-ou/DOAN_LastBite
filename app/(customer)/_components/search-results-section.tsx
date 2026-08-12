@@ -22,7 +22,12 @@ type Status = "locating" | "loading" | "ready" | "denied" | "error";
 // newest-sorted list, not the "Tất cả" multi-row layout repeated for just
 // that category. So a categoryId with no explicit `sort` chosen defaults
 // to "newest" rather than falling back to relevance/distance.
-export function SearchResultsSection() {
+//
+// One heading above the whole list, not a per-card tag (same fix as
+// combo-carousel.tsx's rows) — a repeated "Kết quả tìm kiếm" badge on every
+// card read as clutter once there's already a heading saying the same
+// thing once.
+export function SearchResultsSection({ categoryName }: { categoryName?: string }) {
   const searchParams = useSearchParams();
   const categoryId = searchParams.get("categoryId");
   const query = searchParams.get("q");
@@ -80,29 +85,31 @@ export function SearchResultsSection() {
     };
   }, [categoryId, query, sort, minPrice, maxPrice, radiusM]);
 
-  if (status === "locating" || status === "loading") {
-    return (
-      <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-        <MapPin className="size-4 animate-pulse" />
-        Đang tìm combo phù hợp...
-      </p>
-    );
-  }
+  const heading = query ? `Kết quả cho “${query}”` : categoryName ? categoryName : "Kết quả tìm kiếm";
 
-  if (status === "denied") {
-    return (
-      <p className="py-8 text-sm text-muted-foreground">
-        LastBite cần quyền truy cập vị trí để tìm combo gần bạn. Vui lòng cho phép định vị và tải
-        lại trang.
-      </p>
-    );
-  }
+  return (
+    <div className="space-y-3">
+      <h2 className="text-lg font-semibold">{heading}</h2>
 
-  if (status === "error") {
-    return (
-      <p className="py-8 text-sm text-destructive">Không tải được danh sách combo, thử lại sau.</p>
-    );
-  }
+      {(status === "locating" || status === "loading") && (
+        <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+          <MapPin className="size-4 animate-pulse" />
+          Đang tìm combo phù hợp...
+        </p>
+      )}
 
-  return <ComboList combos={combos} tag="Kết quả tìm kiếm" />;
+      {status === "denied" && (
+        <p className="py-8 text-sm text-muted-foreground">
+          LastBite cần quyền truy cập vị trí để tìm combo gần bạn. Vui lòng cho phép định vị và tải
+          lại trang.
+        </p>
+      )}
+
+      {status === "error" && (
+        <p className="py-8 text-sm text-destructive">Không tải được danh sách combo, thử lại sau.</p>
+      )}
+
+      {status === "ready" && <ComboList combos={combos} />}
+    </div>
+  );
 }
