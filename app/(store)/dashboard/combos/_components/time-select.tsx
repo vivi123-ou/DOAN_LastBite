@@ -1,0 +1,52 @@
+"use client";
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => {
+  const hours = Math.floor(i / 4);
+  const minutes = (i % 4) * 15;
+  return `${pad(hours)}:${pad(minutes)}`;
+});
+
+interface TimeSelectProps {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+// Always renders 24-hour "HH:mm" and never delegates to the browser's native
+// <input type="time"> — that picker's AM/PM ("sáng"/"chiều") vs 24h display
+// is tied to the OS locale, not something we can force from the page.
+// Options step every 15 minutes: round-number suggestions (like Zalo/Google
+// Calendar's picker), not free-typed second-level precision Best Before
+// doesn't need.
+export function TimeSelect({ id, value, onChange }: TimeSelectProps) {
+  return (
+    <Select
+      value={value}
+      onValueChange={(v) => onChange(v ?? "")}
+      items={TIME_OPTIONS.map((t) => ({ value: t, label: t }))}
+    >
+      <SelectTrigger id={id} className="w-full">
+        <SelectValue placeholder="Chọn giờ" />
+      </SelectTrigger>
+      <SelectContent className="max-h-64">
+        {TIME_OPTIONS.map((t) => (
+          <SelectItem key={t} value={t}>
+            {t}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}

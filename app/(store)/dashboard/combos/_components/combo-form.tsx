@@ -23,6 +23,7 @@ import {
   suggestBestBefore,
 } from "@/lib/pricing/lock-duration/lock-duration.policy";
 import { ComboImageUploader } from "@/app/(store)/dashboard/combos/_components/combo-image-uploader";
+import { TimeSelect } from "@/app/(store)/dashboard/combos/_components/time-select";
 import { createComboAction, updateComboAction } from "@/app/(store)/dashboard/combos/actions";
 
 interface ComboFormProps {
@@ -31,10 +32,20 @@ interface ComboFormProps {
   initialCombo?: Combo;
 }
 
-function toDatetimeLocal(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+// Best Before is edited as separate date + time fields (see TimeSelect for
+// why: native <input type="datetime-local"> defers to the OS's date/time
+// picker UI, which is inconsistent across browsers/locales — one Windows
+// setup rendered a full "create reminder" dialog instead of a simple picker).
+function toDateOnly(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function toTimeOnly(d: Date): string {
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // Displays with Vietnamese thousands separators ("." — see toLocaleString(vi-VN)
@@ -67,8 +78,11 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
   );
   const [imageUrls, setImageUrls] = useState<string[]>(initialCombo?.images ?? []);
   const [customBestBefore, setCustomBestBefore] = useState(Boolean(initialCombo));
-  const [bestBeforeLocal, setBestBeforeLocal] = useState(
-    initialCombo ? toDatetimeLocal(initialCombo.bestBefore) : ""
+  const [bestBeforeDate, setBestBeforeDate] = useState(
+    initialCombo ? toDateOnly(new Date(initialCombo.bestBefore)) : ""
+  );
+  const [bestBeforeTime, setBestBeforeTime] = useState(
+    initialCombo ? toTimeOnly(new Date(initialCombo.bestBefore)) : ""
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,10 +97,10 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
   // store owner can manually set Best Before. Covers selling past midnight
   // (e.g. created 11pm, locks 6am next day) without allowing far-future
   // dates. Mirrored server-side in combo.schema.ts (source of truth).
-  const bestBeforeBounds = useMemo(() => {
+  const bestBeforeDateBounds = useMemo(() => {
     const now = new Date();
     const max = new Date(now.getTime() + MAX_BEST_BEFORE_HOURS * 60 * 60_000);
-    return { min: toDatetimeLocal(now.toISOString()), max: toDatetimeLocal(max.toISOString()) };
+    return { min: toDateOnly(now), max: toDateOnly(max) };
   }, []);
 
   function updateItem(index: number, patch: Partial<ComboItemInput>) {
@@ -113,7 +127,9 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
       originalPrice: Number(originalPrice),
       initialStock: Number(initialStock),
       bestBeforeOverride:
-        customBestBefore && bestBeforeLocal ? new Date(bestBeforeLocal).toISOString() : undefined,
+        customBestBefore && bestBeforeDate && bestBeforeTime
+          ? new Date(`${bestBeforeDate}T${bestBeforeTime}`).toISOString()
+          : undefined,
       deliverySupported,
       pickupSupported,
       items,
@@ -221,14 +237,28 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
         )}
         {customBestBefore && (
           <>
-            <Input
-              type="datetime-local"
-              value={bestBeforeLocal}
-              onChange={(e) => setBestBeforeLocal(e.target.value)}
-              min={bestBeforeBounds.min}
-              max={bestBeforeBounds.max}
-              required
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="best-before-date" className="text-xs text-muted-foreground">
+                  Ngày
+                </Label>
+                <Input
+                  id="best-before-date"
+                  type="date"
+                  value={bestBeforeDate}
+                  onChange={(e) => setBestBeforeDate(e.target.value)}
+                  min={bestBeforeDateBounds.min}
+                  max={bestBeforeDateBounds.max}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="best-before-time" className="text-xs text-muted-foreground">
+                  Giờ
+                </Label>
+                <TimeSelect id="best-before-time" value={bestBeforeTime} onChange={setBestBeforeTime} />
+              </div>
+            </div>
             <p className="text-xs text-muted-foreground">
               Tối đa {MAX_BEST_BEFORE_HOURS} giờ kể từ bây giờ — bán qua đêm vẫn chọn được, nhưng
               không được đặt quá xa.
