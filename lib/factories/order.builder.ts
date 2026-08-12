@@ -1,5 +1,6 @@
 import type { ComboSnapshot } from "@/lib/domain/combo";
 import type { CreateOrderInput } from "@/lib/domain/order";
+import { calculateRedemptionValue, VND_PER_POINT } from "@/lib/pricing/net-zero/net-zero.policy";
 
 export interface BuiltOrder {
   order: {
@@ -9,6 +10,7 @@ export interface BuiltOrder {
     subtotal: number;
     discount_amount: number;
     bulk_discount_pct: number;
+    net_zero_points_used: number;
     total_amount: number;
   };
   items: {
@@ -88,17 +90,36 @@ export class OrderBuilder {
       };
     });
 
+    // Net Zero points redemption — availableNetZeroPoints is the caller's
+    // fresh-fetched balance (cart/actions.ts), never trusted from the
+    // client, same rule as combo prices/stock above. Capped so a discount
+    // can never exceed the order's own subtotal: redeeming more points
+    // than the order is worth would mean *paying* the customer, not
+    // discounting them.
+    const pointsRequested = Math.max(0, Math.floor(input.netZeroPointsToApply ?? 0));
+    const availablePoints = Math.max(0, input.availableNetZeroPoints ?? 0);
+    if (pointsRequested > availablePoints) {
+      throw new Error("Bạn không có đủ điểm Net Zero.");
+    }
+    let netZeroPointsUsed = pointsRequested;
+    let discountAmount = calculateRedemptionValue(pointsRequested);
+    if (discountAmount > subtotal) {
+      netZeroPointsUsed = Math.floor(subtotal / VND_PER_POINT);
+      discountAmount = calculateRedemptionValue(netZeroPointsUsed);
+    }
+
     return {
       order: {
         customer_id: input.customerId,
         store_id: input.storeId,
         fulfillment_type: input.fulfillmentType,
         subtotal,
+        discount_amount: discountAmount,
         // Bulk-buy discount is Phase 4 (bulk_discount_tiers table dormant
         // until then) — stays 0 here, not hardcoded logic to remove later.
-        discount_amount: 0,
         bulk_discount_pct: 0,
-        total_amount: subtotal,
+        net_zero_points_used: netZeroPointsUsed,
+        total_amount: subtotal - discountAmount,
       },
       items,
       delivery:

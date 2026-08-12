@@ -46,6 +46,7 @@ export interface Order {
   deliveryAddressLine: string | null;
   subtotal: number;
   discountAmount: number;
+  netZeroPointsUsed: number;
   totalAmount: number;
   paymentStatus: PaymentStatus;
   paymentMethod: "vnpay" | "momo" | null;
@@ -62,6 +63,11 @@ export interface CreateOrderInput {
   deliveryLat?: number;
   deliveryLng?: number;
   items: { comboId: string; quantity: number }[];
+  // How many Net Zero points the customer asked to redeem, and their real
+  // balance at build time (fetched fresh by the caller — cart/actions.ts —
+  // never trusted from the client, same rule as combo prices/stock).
+  netZeroPointsToApply?: number;
+  availableNetZeroPoints?: number;
 }
 
 export interface StoreMonthlyStats {

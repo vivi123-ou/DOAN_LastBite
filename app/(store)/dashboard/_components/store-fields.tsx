@@ -121,6 +121,7 @@ export function StoreFields({
         <Input
           id="store-phone"
           type="tel"
+          maxLength={15}
           value={phone}
           onChange={(e) => onPhoneChange(e.target.value)}
           placeholder="090 xxx xxxx"

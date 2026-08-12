@@ -15,6 +15,7 @@ export interface Database {
           full_name: string | null;
           phone: string | null;
           avatar_url: string | null;
+          net_zero_points: number;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["profiles"]["Row"]> & { id: string };
@@ -251,6 +252,7 @@ export interface Database {
           subtotal: number;
           discount_amount: number;
           bulk_discount_pct: number;
+          net_zero_points_used: number;
           total_amount: number;
           payment_status: "unpaid" | "success" | "failed" | "refunded";
           payment_method: "vnpay" | "momo" | null;

@@ -14,7 +14,7 @@ export default async function AccountPage() {
   if (!profile) redirect("/login?next=/account");
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-10">
+    <div className="max-w-lg px-4 py-10">
       <Card>
         <CardHeader>
           <CardTitle>Tài khoản của tôi</CardTitle>

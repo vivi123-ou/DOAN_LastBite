@@ -6,6 +6,7 @@ import { getCurrentUserId } from "@/lib/supabase/auth";
 import { checkoutSchema } from "@/lib/validation/order.schema";
 import { getSnapshotsByIds } from "@/lib/repositories/combo.repository";
 import { getOwnerIdById } from "@/lib/repositories/store.repository";
+import { getSummary } from "@/lib/repositories/net-zero.repository";
 import { OrderBuilder } from "@/lib/factories/order.builder";
 import * as orderRepository from "@/lib/repositories/order.repository";
 
@@ -33,7 +34,10 @@ export async function createOrderAction(input: unknown): Promise<{ orderId: stri
   }
 
   const comboIds = parsed.items.map((i) => i.comboId);
-  const snapshots = await getSnapshotsByIds(admin, comboIds);
+  const [snapshots, netZero] = await Promise.all([
+    getSnapshotsByIds(admin, comboIds),
+    getSummary(admin, userId),
+  ]);
 
   const built = OrderBuilder.build(
     {
@@ -44,6 +48,10 @@ export async function createOrderAction(input: unknown): Promise<{ orderId: stri
       deliveryLat: parsed.deliveryLat,
       deliveryLng: parsed.deliveryLng,
       items: parsed.items,
+      // Never trust the client's own idea of its points balance — same
+      // rule as combo prices/stock (getSnapshotsByIds above).
+      netZeroPointsToApply: parsed.netZeroPointsToApply,
+      availableNetZeroPoints: netZero.pointsBalance,
     },
     snapshots
   );

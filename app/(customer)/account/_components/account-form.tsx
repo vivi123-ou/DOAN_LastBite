@@ -66,6 +66,7 @@ export function AccountForm({ profile, email }: { profile: Profile; email: strin
         <Input
           id="phone"
           type="tel"
+          maxLength={15}
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="09xxxxxxxx"

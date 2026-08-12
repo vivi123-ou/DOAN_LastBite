@@ -13,6 +13,7 @@ export const checkoutSchema = z
     deliveryLat: z.number().min(-90).max(90).optional(),
     deliveryLng: z.number().min(-180).max(180).optional(),
     items: z.array(checkoutItemSchema).min(1, "Giỏ hàng đang trống"),
+    netZeroPointsToApply: z.coerce.number().int().min(0).optional(),
   })
   .refine(
     (data) =>

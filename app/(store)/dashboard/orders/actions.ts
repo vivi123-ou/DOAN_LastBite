@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getById, updateStatus } from "@/lib/repositories/order.repository";
 import { create as createNotification } from "@/lib/repositories/notification.repository";
+import { adjustBalance } from "@/lib/repositories/net-zero.repository";
 import type { OrderStatus } from "@/lib/domain/order";
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
@@ -32,6 +33,17 @@ export async function updateOrderStatusAction(orderId: string, status: OrderStat
   const order = await getById(supabase, orderId);
   if (order) {
     const admin = createAdminClient();
+
+    // Refund any Net Zero points spent on this order — a store owner
+    // rejecting/cancelling an order is a cross-actor write against the
+    // *customer's* points balance (order.repository.ts's create() deducted
+    // them at checkout time, mirroring how restoreStock() already refunds
+    // combo stock for these exact two statuses), so this needs the
+    // service-role client too.
+    if ((status === "rejected" || status === "cancelled") && order.netZeroPointsUsed > 0) {
+      await adjustBalance(admin, order.customerId, order.netZeroPointsUsed).catch(() => {});
+    }
+
     await createNotification(admin, {
       userId: order.customerId,
       type: "order_status",

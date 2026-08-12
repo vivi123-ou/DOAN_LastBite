@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import type { Order, OrderStatus, StoreMonthlyStats } from "@/lib/domain/order";
 import type { BuiltOrder } from "@/lib/factories/order.builder";
+import { adjustBalance, recordOrderImpact } from "@/lib/repositories/net-zero.repository";
 
 type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
 
@@ -49,6 +50,7 @@ async function hydrate(
     deliveryAddressLine,
     subtotal: row.subtotal,
     discountAmount: row.discount_amount,
+    netZeroPointsUsed: row.net_zero_points_used,
     totalAmount: row.total_amount,
     paymentStatus: row.payment_status,
     paymentMethod: row.payment_method,
@@ -116,6 +118,14 @@ export async function create(adminClient: SupabaseClient<Database>, built: Built
       .update({ remaining_stock: item.remainingStockBeforeOrder - item.quantity })
       .eq("id", item.combo_id);
     if (stockError) throw stockError;
+  }
+
+  // Deduct redeemed Net Zero points immediately at order creation, not at
+  // payment success — mirrors the stock decrement above (reserved as soon
+  // as the order exists, refunded via restoreStock()'s same
+  // rejected/cancelled trigger below if it doesn't go through).
+  if (built.order.net_zero_points_used > 0) {
+    await adjustBalance(adminClient, built.order.customer_id, -built.order.net_zero_points_used);
   }
 
   const { data: store } = await adminClient
@@ -223,7 +233,7 @@ export async function markPaid(
 ): Promise<void> {
   const { data: order, error: orderError } = await adminClient
     .from("orders")
-    .select("total_amount, fulfillment_type")
+    .select("customer_id, total_amount, fulfillment_type")
     .eq("id", orderId)
     .single();
   if (orderError) throw orderError;
@@ -248,6 +258,10 @@ export async function markPaid(
     })
     .eq("id", orderId);
   if (updateError) throw updateError;
+
+  // Best-effort: a Net Zero ledger/points hiccup shouldn't fail the
+  // payment itself — the order is genuinely paid regardless.
+  await recordOrderImpact(adminClient, orderId, order.customer_id, order.total_amount).catch(() => {});
 }
 
 export async function getStoreMonthlyStats(

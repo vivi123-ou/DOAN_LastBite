@@ -3,7 +3,7 @@ import { Leaf } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getById } from "@/lib/repositories/profile.repository";
 import { Button } from "@/components/ui/button";
-import { CartBadge } from "@/components/layout/cart-badge";
+import { MiniCart } from "@/components/cart/mini-cart";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SiteMenu } from "@/components/layout/site-menu";
 import { SiteSearch } from "@/components/layout/site-search";
@@ -42,7 +42,7 @@ export async function SiteHeader() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {role !== "store_owner" && <CartBadge />}
+          {role !== "store_owner" && <MiniCart />}
           {userId && profile ? (
             <>
               <NotificationBell userId={userId} />
