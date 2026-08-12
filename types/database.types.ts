@@ -172,6 +172,39 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["price_history"]["Row"]>;
         Relationships: [];
       };
+      friendships: {
+        Row: {
+          id: string;
+          requester_id: string;
+          addressee_id: string;
+          status: "pending" | "accepted" | "rejected";
+          created_at: string;
+          responded_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["friendships"]["Row"]> & {
+          requester_id: string;
+          addressee_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["friendships"]["Row"]>;
+        Relationships: [];
+      };
+      messages: {
+        Row: {
+          id: string;
+          friendship_id: string;
+          sender_id: string;
+          body: string;
+          group_order_id: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["messages"]["Row"]> & {
+          friendship_id: string;
+          sender_id: string;
+          body: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["messages"]["Row"]>;
+        Relationships: [];
+      };
       group_orders: {
         Row: {
           id: string;
@@ -410,6 +443,18 @@ export interface Database {
           image_url: string | null;
           delivery_supported: boolean;
           pickup_supported: boolean;
+        }[];
+      };
+      search_profiles: {
+        Args: {
+          in_query: string;
+          exclude_user_id: string;
+          max_results?: number;
+        };
+        Returns: {
+          user_id: string;
+          full_name: string | null;
+          avatar_url: string | null;
         }[];
       };
     };

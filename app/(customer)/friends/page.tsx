@@ -1,0 +1,25 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserId } from "@/lib/supabase/auth";
+import { listFriendships } from "@/lib/repositories/friend.repository";
+import { FriendsView } from "@/app/(customer)/friends/_components/friends-view";
+
+export default async function FriendsPage() {
+  const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) redirect("/login?next=/friends");
+
+  const friendships = await listFriendships(supabase, userId);
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+      <div>
+        <h1 className="text-2xl font-bold">Bạn bè</h1>
+        <p className="text-sm text-muted-foreground">
+          Kết bạn, nhắn tin và mời nhau mua chung để được giảm giá theo số lượng.
+        </p>
+      </div>
+      <FriendsView initialFriendships={friendships} />
+    </div>
+  );
+}

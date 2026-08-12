@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getById } from "@/lib/repositories/profile.repository";
 import { Button } from "@/components/ui/button";
 import { CartBadge } from "@/components/layout/cart-badge";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { SiteMenu } from "@/components/layout/site-menu";
 import { SiteSearch } from "@/components/layout/site-search";
 import { SiteSearchFilters } from "@/components/layout/site-search-filters";
@@ -43,11 +44,14 @@ export async function SiteHeader() {
         <div className="flex shrink-0 items-center gap-2">
           {role !== "store_owner" && <CartBadge />}
           {userId && profile ? (
-            <UserMenu
-              fullName={profile.fullName}
-              avatarUrl={profile.avatarUrl}
-              email={(data?.claims.email as string) ?? null}
-            />
+            <>
+              <NotificationBell userId={userId} />
+              <UserMenu
+                fullName={profile.fullName}
+                avatarUrl={profile.avatarUrl}
+                email={(data?.claims.email as string) ?? null}
+              />
+            </>
           ) : (
             <>
               <Button

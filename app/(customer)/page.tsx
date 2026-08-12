@@ -5,7 +5,7 @@ import { getCurrentUserId } from "@/lib/supabase/auth";
 import { listCategories } from "@/lib/repositories/category.repository";
 import { getTopPurchasedCategoryIds } from "@/lib/repositories/order.repository";
 import { CategoryRail } from "@/app/(customer)/_components/category-rail";
-import { ComboTabsSection } from "@/app/(customer)/_components/combo-tabs-section";
+import { ComboSections } from "@/app/(customer)/_components/combo-sections";
 import { SearchResultsSection } from "@/app/(customer)/_components/search-results-section";
 
 export default async function HomePage({
@@ -84,7 +84,7 @@ export default async function HomePage({
         </section>
       ) : (
         <Suspense>
-          <ComboTabsSection recommendedCategoryId={recommendedCategoryId} />
+          <ComboSections recommendedCategoryId={recommendedCategoryId} />
         </Suspense>
       )}
     </div>

@@ -21,6 +21,28 @@ function toDomain(row: StoreRow): Store {
   };
 }
 
+// Store picker for the group-buy invite flow (friends/[friendshipId]
+// actions) — public read scoped to verified/active stores, same visibility
+// rule already established for the rest of the customer-facing app
+// (database-and-schema.md: "public reads on stores are scoped to
+// verification_status='verified'"). Plain name-ordered list rather than a
+// new search RPC — the invite picker is a small dropdown, not a full
+// search UI.
+export async function listVerified(
+  client: SupabaseClient<Database>,
+  limit = 50
+): Promise<{ id: string; name: string }[]> {
+  const { data, error } = await client
+    .from("stores")
+    .select("id, name")
+    .eq("verification_status", "verified")
+    .eq("is_active", true)
+    .order("name")
+    .limit(limit);
+  if (error) throw error;
+  return data;
+}
+
 export async function getLocationsByIds(
   client: SupabaseClient<Database>,
   storeIds: string[]

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Info, Menu, MapPin, Receipt, Store } from "lucide-react";
+import { Home, Info, Menu, MapPin, Receipt, Store, Users } from "lucide-react";
 
 interface SiteMenuProps {
   role: "customer" | "store_owner" | null;
@@ -16,35 +16,39 @@ interface NavItem {
   icon: typeof Home;
 }
 
-// inbook.vn's own "MENU" hamburger — collapsed by default so scrolling only
-// ever shows the sticky header (per explicit feedback: a persistent side
-// rail eating vertical space next to content wasn't wanted, an overlay
-// dropdown you open on demand was). Replaces the previous always-visible
-// a persistent left rail. "Cửa hàng của tôi" is
-// shown to *any* logged-in account, not just store_owner — /dashboard
-// already branches to the registration form for accounts with no store yet
+// A left-edge slide-in drawer (not an anchored dropdown) — open by default
+// on first load so the nav is discoverable immediately, closes on scroll-
+// down (the sticky header stays put; only the drawer hides), and can always
+// be reopened via the hamburger button. "Cửa hàng của tôi" is shown to
+// *any* logged-in account, not just store_owner — /dashboard already
+// branches to the registration form for accounts with no store yet
 // (app/(store)/dashboard/page.tsx).
 export function SiteMenu({ role, isLoggedIn }: SiteMenuProps) {
   const pathname = usePathname();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
   useEffect(() => {
-    function handlePointerDown(e: PointerEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    let lastY = window.scrollY;
+    function handleScroll() {
+      const y = window.scrollY;
+      // Only react to a real downward scroll past the header's own height —
+      // ignores the tiny jitter some trackpads/mobile browsers report.
+      if (y > lastY && y > 80) setOpen(false);
+      lastY = y;
     }
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const primaryItems: NavItem[] = [
     { href: "/", label: "Trang chủ", icon: Home },
     { href: "/map", label: "Bản đồ", icon: MapPin },
   ];
-  if (isLoggedIn && role !== "store_owner") {
-    primaryItems.push({ href: "/orders", label: "Đơn hàng của tôi", icon: Receipt });
+  if (isLoggedIn) {
+    primaryItems.push({ href: "/friends", label: "Bạn bè", icon: Users });
+    if (role !== "store_owner") {
+      primaryItems.push({ href: "/orders", label: "Đơn hàng của tôi", icon: Receipt });
+    }
   }
 
   function renderItem({ href, label, icon: Icon }: NavItem) {
@@ -65,32 +69,46 @@ export function SiteMenu({ role, isLoggedIn }: SiteMenuProps) {
   }
 
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    <>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="flex shrink-0 items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
         aria-label="Menu"
+        aria-expanded={open}
       >
         <Menu className="size-5" />
         <span className="hidden md:inline">Menu</span>
       </button>
 
-      {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-64 space-y-1 rounded-md border bg-popover p-2 shadow-lg">
-          {primaryItems.map(renderItem)}
+      {/* Backdrop — click-outside-to-close, sits below the h-16 header. */}
+      <div
+        onClick={() => setOpen(false)}
+        aria-hidden
+        className={`fixed inset-x-0 top-16 bottom-0 z-40 bg-black/30 transition-opacity duration-300 ${
+          open ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
 
-          {isLoggedIn && (
-            <>
-              <div className="my-1 border-t" />
-              {renderItem({ href: "/dashboard", label: "Cửa hàng của tôi", icon: Store })}
-            </>
-          )}
+      {/* Always mounted (not conditionally rendered) so the transform
+          transition actually animates in/out instead of popping. */}
+      <nav
+        className={`fixed left-0 top-16 bottom-0 z-40 w-72 space-y-1 overflow-y-auto border-r bg-background p-3 shadow-lg transition-transform duration-300 ease-out ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {primaryItems.map(renderItem)}
 
-          <div className="my-1 border-t" />
-          {renderItem({ href: "/#site-footer", label: "Về chúng tôi", icon: Info })}
-        </div>
-      )}
-    </div>
+        {isLoggedIn && (
+          <>
+            <div className="my-1 border-t" />
+            {renderItem({ href: "/dashboard", label: "Cửa hàng của tôi", icon: Store })}
+          </>
+        )}
+
+        <div className="my-1 border-t" />
+        {renderItem({ href: "/#site-footer", label: "Về chúng tôi", icon: Info })}
+      </nav>
+    </>
   );
 }
