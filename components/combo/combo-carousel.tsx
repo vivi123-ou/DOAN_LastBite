@@ -11,15 +11,18 @@ const AUTO_ADVANCE_MS = 5000;
 // .claude/rules/workflow.md) — roughly 4 cards visible on desktop, arrow
 // buttons that only appear once there's actually more to scroll to, and a
 // slow auto-advance loop when there's enough content to make it worthwhile.
+// No per-card `tag` is passed here on purpose — the row's own <h2> title
+// already says what this shelf is, so repeating it on every card under it
+// would just be redundant (explicit feedback: a "Mới nhất" tag showing up
+// again on a card already sitting under a "Mới nhất" heading read as a
+// rendering bug at first glance).
 export function ComboCarousel({
   title,
   combos,
-  tag,
   emptyMessage,
 }: {
   title: string;
   combos: NearbyCombo[];
-  tag?: string;
   emptyMessage?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -109,7 +112,7 @@ export function ComboCarousel({
               key={combo.comboId}
               className="w-[68%] shrink-0 snap-start sm:w-[44%] md:w-[31%] lg:w-[23%]"
             >
-              <ComboCard combo={combo} tag={tag} />
+              <ComboCard combo={combo} />
             </div>
           ))}
         </div>

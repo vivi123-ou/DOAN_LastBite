@@ -21,7 +21,12 @@ export default async function HomePage({
   }>;
 }) {
   const { categoryId, q, sort, minPrice, maxPrice, radiusM } = await searchParams;
-  const isFiltered = Boolean(q || sort || minPrice || maxPrice || radiusM);
+  // A specific category pill also switches to the filtered results view —
+  // explicit feedback: browsing one category should be a single newest-
+  // sorted list, not the "Tất cả" multi-row layout repeated for just that
+  // category (search-results-section.tsx defaults sort to "newest" when
+  // categoryId is set with no explicit sort chosen).
+  const isFiltered = Boolean(q || sort || minPrice || maxPrice || radiusM || categoryId);
 
   const supabase = await createClient();
   const [categories, userId] = await Promise.all([
@@ -72,10 +77,9 @@ export default async function HomePage({
         <CategoryRail categories={categories} activeCategoryId={categoryId} />
       </section>
 
-      {/* Search (site-search.tsx, header) or the filter icon (site-search-
-          filters.tsx, header) switches this from the tabbed browse view to
-          filtered search results — same URL-searchParams contract as
-          categoryId above, just read server-side here to pick the view. */}
+      {/* Search (site-search.tsx, header), the filter icon (site-search-
+          filters.tsx, header), or a category pill above all switch this
+          from the "Tất cả" browse view to filtered search results. */}
       {isFiltered ? (
         <section className="space-y-3">
           <Suspense>
@@ -84,7 +88,7 @@ export default async function HomePage({
         </section>
       ) : (
         <Suspense>
-          <ComboSections recommendedCategoryId={recommendedCategoryId} />
+          <ComboSections recommendedCategoryId={recommendedCategoryId} categories={categories} />
         </Suspense>
       )}
     </div>

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { getCurrentPosition, type Coordinates } from "@/lib/geo/geolocation";
 import { ComboCarousel } from "@/components/combo/combo-carousel";
 import type { NearbyCombo } from "@/lib/domain/combo";
+import type { Category } from "@/lib/domain/category";
 
 type SectionKey = "nearby" | "newest" | "recommended";
 
@@ -15,23 +15,29 @@ const SECTIONS: { key: SectionKey; title: string }[] = [
   { key: "recommended", title: "Gợi ý cho bạn" },
 ];
 
-// The homepage's default (no active search/filter) browsing view — three
-// stacked horizontal carousel rows (not tabs you switch between — explicit
-// feedback was that a tab switcher hid too much at once, a real inbook.vn-
-// style "row per section" reads better), each fetched independently and
-// tagged onto its cards via ComboCard's `tag` prop. Separate from the
-// search-results view (search-results-section.tsx) that takes over once a
-// `q`/`sort`/`minPrice`/`maxPrice`/`radiusM` filter is active — see
-// page.tsx for the switch between the two.
-export function ComboSections({ recommendedCategoryId }: { recommendedCategoryId?: string }) {
-  const searchParams = useSearchParams();
-  const categoryId = searchParams.get("categoryId") ?? undefined;
-
+// The homepage's default "Tất cả" browsing view (no category/search filter
+// active) — three curated carousel rows, then one row per category so
+// every listed type gets its own shelf. Selecting a specific category pill
+// (category-rail.tsx) switches the homepage to search-results-section.tsx
+// instead (a single newest-sorted list for just that category) — see
+// page.tsx's isFiltered switch — so this component never has to handle a
+// categoryId itself. No `tag` badge is passed to any card here: every row
+// already has its own <h2> title right above it, so a repeated per-card
+// tag would just be redundant clutter (a card under "Cà phê" doesn't need
+// to also say "Cà phê").
+export function ComboSections({
+  recommendedCategoryId,
+  categories,
+}: {
+  recommendedCategoryId?: string;
+  categories: Category[];
+}) {
   const [locationState, setLocationState] = useState<"locating" | "ready" | "denied">("locating");
   const coordsRef = useRef<Coordinates | null>(null);
   const [combosBySection, setCombosBySection] = useState<Partial<Record<SectionKey, NearbyCombo[]>>>(
     {}
   );
+  const [combosByCategory, setCombosByCategory] = useState<Record<string, NearbyCombo[]>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -58,13 +64,10 @@ export function ComboSections({ recommendedCategoryId }: { recommendedCategoryId
       const params = new URLSearchParams({ lat: String(lat), lng: String(lng) });
       let endpoint = "/api/combos/nearby";
 
-      if (key === "nearby") {
-        if (categoryId) params.set("categoryId", categoryId);
-      } else if (key === "newest") {
+      if (key === "newest") {
         endpoint = "/api/combos/search";
         params.set("sort", "newest");
-        if (categoryId) params.set("categoryId", categoryId);
-      } else {
+      } else if (key === "recommended") {
         if (!recommendedCategoryId) {
           if (!cancelled) setCombosBySection((c) => ({ ...c, recommended: [] }));
           return;
@@ -79,18 +82,29 @@ export function ComboSections({ recommendedCategoryId }: { recommendedCategoryId
       setCombosBySection((c) => ({ ...c, [key]: combos }));
     }
 
-    // All three sections load in parallel — they're independent rows shown
-    // at once now, not lazily fetched per active tab.
+    async function fetchCategory(categoryId: string) {
+      const params = new URLSearchParams({ lat: String(lat), lng: String(lng), categoryId });
+      const res = await fetch(`/api/combos/nearby?${params.toString()}`);
+      if (cancelled || !res.ok) return;
+      const { combos } = await res.json();
+      if (cancelled) return;
+      setCombosByCategory((c) => ({ ...c, [categoryId]: combos }));
+    }
+
+    // Every row (the three curated sections + one per category) loads in
+    // parallel — they're independent shelves shown at once, not lazily
+    // fetched per active tab.
     Promise.resolve().then(() => {
       fetchSection("nearby");
       fetchSection("newest");
       fetchSection("recommended");
+      categories.forEach((cat) => fetchCategory(cat.id));
     });
 
     return () => {
       cancelled = true;
     };
-  }, [locationState, categoryId, recommendedCategoryId]);
+  }, [locationState, recommendedCategoryId, categories]);
 
   if (locationState === "locating") {
     return (
@@ -136,9 +150,21 @@ export function ComboSections({ recommendedCategoryId }: { recommendedCategoryId
           );
         }
 
-        return (
-          <ComboCarousel key={section.key} title={section.title} combos={combos} tag={section.title} />
-        );
+        return <ComboCarousel key={section.key} title={section.title} combos={combos} />;
+      })}
+
+      {categories.map((cat) => {
+        const combos = combosByCategory[cat.id];
+        if (combos === undefined) {
+          return (
+            <section key={cat.id} className="space-y-3">
+              <h2 className="text-lg font-semibold">{cat.name}</h2>
+              <p className="py-6 text-sm text-muted-foreground">Đang tải...</p>
+            </section>
+          );
+        }
+        if (combos.length === 0) return null; // no dead shelf for an empty category
+        return <ComboCarousel key={cat.id} title={cat.name} combos={combos} />;
       })}
     </div>
   );

@@ -11,16 +11,22 @@ import type { NearbyCombo } from "@/lib/domain/combo";
 
 type Status = "locating" | "loading" | "ready" | "denied" | "error";
 
-// Renders instead of ComboTabsSection whenever a search/filter is active
-// (q / sort / minPrice / maxPrice / radiusM in the URL — see page.tsx's
-// switch). Always goes through search_combos() (see combo.repository.ts's
-// search()) rather than nearby_combos() — this view exists precisely
-// *because* a filter/sort beyond pure distance is in play.
+// Renders instead of ComboSections whenever a search/filter is active (q /
+// sort / minPrice / maxPrice / radiusM / categoryId in the URL — see
+// page.tsx's switch). Always goes through search_combos() (see
+// combo.repository.ts's search()) rather than nearby_combos() — this view
+// exists precisely *because* a filter/sort beyond pure distance is in play.
+//
+// Picking a specific category pill (category-rail.tsx) lands here too —
+// explicit feedback was that browsing one category should show a single
+// newest-sorted list, not the "Tất cả" multi-row layout repeated for just
+// that category. So a categoryId with no explicit `sort` chosen defaults
+// to "newest" rather than falling back to relevance/distance.
 export function SearchResultsSection() {
   const searchParams = useSearchParams();
   const categoryId = searchParams.get("categoryId");
   const query = searchParams.get("q");
-  const sort = searchParams.get("sort");
+  const sort = searchParams.get("sort") ?? (categoryId ? "newest" : null);
   const minPrice = searchParams.get("minPrice");
   const maxPrice = searchParams.get("maxPrice");
   const radiusM = searchParams.get("radiusM");
