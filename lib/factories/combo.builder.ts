@@ -1,6 +1,9 @@
 import { ALLOWED_CATEGORY_SLUGS, type Category } from "@/lib/domain/category";
 import type { CreateComboInput } from "@/lib/domain/combo";
-import { suggestBestBefore } from "@/lib/pricing/lock-duration/lock-duration.policy";
+import {
+  isWithinAllowedBestBeforeRange,
+  suggestBestBefore,
+} from "@/lib/pricing/lock-duration/lock-duration.policy";
 
 export interface BuiltCombo {
   combo: {
@@ -32,6 +35,15 @@ export class ComboBuilder {
     }
     if (input.items.length === 0) {
       throw new Error("A combo must contain at least one item.");
+    }
+
+    if (
+      input.bestBeforeOverride &&
+      !isWithinAllowedBestBeforeRange(input.bestBeforeOverride, category)
+    ) {
+      throw new Error(
+        `Giờ khoá bán tuỳ chỉnh chỉ được sớm hơn (không được trễ hơn) giờ đề xuất tự động cho loại combo này: ${suggestBestBefore(category).toLocaleString("vi-VN")}.`
+      );
     }
 
     const bestBefore = input.bestBeforeOverride ?? suggestBestBefore(category);

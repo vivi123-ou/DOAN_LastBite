@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { isWithinAllowedBestBeforeRange } from "@/lib/pricing/lock-duration/lock-duration.policy";
 
 export const comboItemSchema = z.object({
   itemName: z.string().trim().min(1, "Tên món không được để trống").max(120),
@@ -14,7 +13,18 @@ export const createComboSchema = z
     description: z.string().trim().max(1000).optional(),
     originalPrice: z.coerce.number().int().min(1000, "Giá gốc tối thiểu 1.000đ"),
     initialStock: z.coerce.number().int().min(1).max(999),
-    bestBeforeOverride: z.string().datetime().optional(),
+    // Only a shape/not-in-the-past check here — the upper bound depends on
+    // the category's default_lock_duration_minutes, which isn't known at
+    // this layer. The authoritative range check (must not be later than the
+    // category's suggested Best Before) runs in combo.builder.ts, where the
+    // resolved Category is available.
+    bestBeforeOverride: z
+      .string()
+      .datetime()
+      .optional()
+      .refine((value) => !value || new Date(value).getTime() > Date.now() - 5 * 60_000, {
+        message: "Giờ khoá bán không được ở quá khứ",
+      }),
     deliverySupported: z.boolean(),
     pickupSupported: z.boolean(),
     items: z.array(comboItemSchema).min(1, "Combo phải có ít nhất 1 món"),
@@ -23,14 +33,6 @@ export const createComboSchema = z
   .refine((data) => data.deliverySupported || data.pickupSupported, {
     message: "Combo phải hỗ trợ ít nhất một hình thức: giao hàng hoặc tự đến lấy",
     path: ["pickupSupported"],
-  })
-  .refine(
-    (data) =>
-      !data.bestBeforeOverride || isWithinAllowedBestBeforeRange(new Date(data.bestBeforeOverride)),
-    {
-      message: "Giờ khoá bán phải trong vòng 24 giờ kể từ bây giờ",
-      path: ["bestBeforeOverride"],
-    }
-  );
+  });
 
 export type CreateComboFormValues = z.infer<typeof createComboSchema>;

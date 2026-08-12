@@ -18,10 +18,7 @@ import {
 } from "@/components/ui/select";
 import type { Category } from "@/lib/domain/category";
 import type { Combo, ComboItemInput } from "@/lib/domain/combo";
-import {
-  MAX_BEST_BEFORE_HOURS,
-  suggestBestBefore,
-} from "@/lib/pricing/lock-duration/lock-duration.policy";
+import { suggestBestBefore } from "@/lib/pricing/lock-duration/lock-duration.policy";
 import { ComboImageUploader } from "@/app/(store)/dashboard/combos/_components/combo-image-uploader";
 import { TimeSelect } from "@/app/(store)/dashboard/combos/_components/time-select";
 import { createComboAction, updateComboAction } from "@/app/(store)/dashboard/combos/actions";
@@ -48,17 +45,28 @@ function toTimeOnly(d: Date): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// Which slice of the [now, now + MAX_BEST_BEFORE_HOURS] window falls on the
-// given date — e.g. today only offers times from now onward; the boundary
-// day only offers times up to the matching cutoff.
-function computeBestBeforeTimeBounds(date: string): { minTime?: string; maxTime?: string } {
+// Which slice of the [now, latest] window falls on the given date — e.g.
+// today only offers times from now onward; the boundary day (the one
+// `latest` falls on) only offers times up to that cutoff. `latest` is the
+// category's auto-suggested Best Before — a custom override may only be
+// EARLIER than that, never later (see lock-duration.policy.ts).
+function computeBestBeforeTimeBounds(
+  date: string,
+  latest: Date
+): { minTime?: string; maxTime?: string } {
   if (!date) return {};
   const now = new Date();
-  const max = new Date(now.getTime() + MAX_BEST_BEFORE_HOURS * 60 * 60_000);
   const bounds: { minTime?: string; maxTime?: string } = {};
   if (date === toDateOnly(now)) bounds.minTime = toTimeOnly(now);
-  if (date === toDateOnly(max)) bounds.maxTime = toTimeOnly(max);
+  if (date === toDateOnly(latest)) bounds.maxTime = toTimeOnly(latest);
   return bounds;
+}
+
+function clampTime(current: string, bounds: { minTime?: string; maxTime?: string }): string {
+  if (!current) return current;
+  if (bounds.minTime && current < bounds.minTime) return bounds.minTime;
+  if (bounds.maxTime && current > bounds.maxTime) return bounds.maxTime;
+  return current;
 }
 
 // Displays with Vietnamese thousands separators ("." — see toLocaleString(vi-VN)
@@ -106,24 +114,25 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
     [selectedCategory]
   );
 
-  // Combos are end-of-day surplus, not a general listing — cap how far out a
-  // store owner can manually set Best Before. Covers selling past midnight
-  // (e.g. created 11pm, locks 6am next day) without allowing far-future
-  // dates. Mirrored server-side in combo.schema.ts (source of truth).
+  // A custom override may only be EARLIER than the category's auto-suggested
+  // Best Before, never later — suggestBestBefore() already is the
+  // food-safety-appropriate maximum for that food type (see
+  // lock-duration.policy.ts, the authoritative check enforced again in
+  // combo.builder.ts server-side).
   const bestBeforeDateBounds = useMemo(() => {
     const now = new Date();
-    const max = new Date(now.getTime() + MAX_BEST_BEFORE_HOURS * 60 * 60_000);
-    return { min: toDateOnly(now), max: toDateOnly(max) };
-  }, []);
+    const latest = suggestedBestBefore ?? now;
+    return { min: toDateOnly(now), max: toDateOnly(latest) };
+  }, [suggestedBestBefore]);
 
-  // Narrows the TimeSelect's options to whichever slice of the 24h window
+  // Narrows the TimeSelect's options to whichever slice of [now, latest]
   // falls on the chosen date — e.g. picking today only offers times from
   // now onward; picking the boundary day only offers times up to the
-  // matching cutoff — instead of letting an out-of-range date+time combo
-  // only get caught after submitting.
+  // category's suggested cutoff — instead of letting an out-of-range
+  // date+time combo only get caught after submitting.
   const bestBeforeTimeBounds = useMemo(
-    () => computeBestBeforeTimeBounds(bestBeforeDate),
-    [bestBeforeDate]
+    () => computeBestBeforeTimeBounds(bestBeforeDate, suggestedBestBefore ?? new Date()),
+    [bestBeforeDate, suggestedBestBefore]
   );
 
   function handleCustomBestBeforeToggle(checked: boolean) {
@@ -136,17 +145,38 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
   // Event-driven (not a useEffect) — computed and applied synchronously in
   // response to the date input changing, rather than reactively watching
   // bestBeforeDate, so switching dates can't leave a stale, now-invalid
-  // time selected (e.g. had "hôm nay 08:00", switched to tomorrow's cutoff
-  // of 07:30 — snap the time back inside the new window immediately).
+  // time selected (e.g. had "hôm nay 08:00", switched to the boundary day
+  // whose cutoff is 07:30 — snap the time back inside the new window
+  // immediately).
   function handleBestBeforeDateChange(newDate: string) {
     setBestBeforeDate(newDate);
-    const bounds = computeBestBeforeTimeBounds(newDate);
-    setBestBeforeTime((current) => {
-      if (!current) return current;
-      if (bounds.minTime && current < bounds.minTime) return bounds.minTime;
-      if (bounds.maxTime && current > bounds.maxTime) return bounds.maxTime;
-      return current;
-    });
+    const bounds = computeBestBeforeTimeBounds(newDate, suggestedBestBefore ?? new Date());
+    setBestBeforeTime((current) => clampTime(current, bounds));
+  }
+
+  // Switching category changes the suggested-cutoff ceiling — re-clamp any
+  // already-picked custom date/time so it can't be left pointing past the
+  // new (possibly tighter) category's window.
+  function handleCategoryChange(newCategoryId: string) {
+    setCategoryId(newCategoryId);
+    if (!customBestBefore || !bestBeforeDate) return;
+
+    const newCategory = categories.find((c) => c.id === newCategoryId);
+    if (!newCategory) return;
+
+    const now = new Date();
+    const latest = suggestBestBefore(newCategory);
+    const minDate = toDateOnly(now);
+    const maxDate = toDateOnly(latest);
+
+    let nextDate = bestBeforeDate;
+    if (nextDate < minDate) nextDate = minDate;
+    if (nextDate > maxDate) nextDate = maxDate;
+
+    const nextTime = clampTime(bestBeforeTime, computeBestBeforeTimeBounds(nextDate, latest));
+
+    if (nextDate !== bestBeforeDate) setBestBeforeDate(nextDate);
+    if (nextTime !== bestBeforeTime) setBestBeforeTime(nextTime);
   }
 
   function updateItem(index: number, patch: Partial<ComboItemInput>) {
@@ -206,7 +236,7 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
           <Label htmlFor="combo-category">Loại combo</Label>
           <Select
             value={categoryId}
-            onValueChange={(value) => setCategoryId(value ?? "")}
+            onValueChange={(value) => handleCategoryChange(value ?? "")}
             items={categories.map((c) => ({ value: c.id, label: c.name }))}
           >
             <SelectTrigger id="combo-category">
@@ -312,12 +342,18 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Tối đa {MAX_BEST_BEFORE_HOURS} giờ kể từ bây giờ (theo khuyến nghị an toàn thực
-              phẩm cho đồ ăn cuối ngày) — chọn ngày trước, danh sách giờ sẽ tự giới hạn còn{" "}
+              Chỉ được khoá <strong>sớm hơn</strong> giờ đề xuất tự động của loại combo này
+              {suggestedBestBefore && (
+                <>
+                  {" "}
+                  (<strong>{suggestedBestBefore.toLocaleString("vi-VN")}</strong>)
+                </>
+              )}
+              , không được trễ hơn. Giờ hợp lệ cho ngày đang chọn:{" "}
               <strong>
                 {bestBeforeTimeBounds.minTime ?? "00:00"} – {bestBeforeTimeBounds.maxTime ?? "23:45"}
-              </strong>{" "}
-              cho ngày đó.
+              </strong>
+              .
             </p>
           </>
         )}
