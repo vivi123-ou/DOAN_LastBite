@@ -9,11 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
 import { ComboStatusToggle } from "@/app/(store)/dashboard/combos/_components/combo-status-toggle";
+import type { Combo, ComboStatus } from "@/lib/domain/combo";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Nháp",
   active: "Đang bán",
-  locked: "Đã khoá (hết hạn)",
+  locked: "Đã hết hạn",
   sold_out: "Hết hàng",
   paused: "Tạm ngưng",
 };
@@ -25,6 +26,21 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   sold_out: "secondary",
   paused: "secondary",
 };
+
+// There's no scheduled sweep that flips `status` to 'locked' once
+// `best_before` passes (documented, still-manual gap — see CLAUDE.md §7),
+// so a combo can be genuinely expired while its stored status still says
+// 'active'. The homepage/search listings now filter this out at the query
+// level (0011_best_before_listing_filter.sql), but the store's own combo
+// list needs to *show* the real state rather than repeat the stale
+// 'active' label — computed here for display only, not written back to
+// the DB.
+function displayStatus(combo: Combo): ComboStatus {
+  if (combo.status === "active" && new Date(combo.bestBefore) <= new Date()) {
+    return "locked";
+  }
+  return combo.status;
+}
 
 export default async function StoreCombosPage() {
   const supabase = await createClient();
@@ -59,29 +75,32 @@ export default async function StoreCombosPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {combos.map((combo) => (
-            <Card key={combo.id}>
-              <CardHeader className="flex flex-row items-start justify-between gap-4">
-                <div>
-                  <CardTitle className="text-lg">{combo.name}</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {combo.currentPrice.toLocaleString("vi-VN")}đ · còn {combo.remainingStock} ·
-                    hạn dùng {new Date(combo.bestBefore).toLocaleString("vi-VN")}
-                  </p>
-                </div>
-                <Badge variant={STATUS_VARIANT[combo.status]}>{STATUS_LABEL[combo.status]}</Badge>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  nativeButton={false}
-                  render={<Link href={`/dashboard/combos/${combo.id}/edit`}>Chỉnh sửa</Link>}
-                />
-                <ComboStatusToggle comboId={combo.id} status={combo.status} />
-              </CardContent>
-            </Card>
-          ))}
+          {combos.map((combo) => {
+            const status = displayStatus(combo);
+            return (
+              <Card key={combo.id}>
+                <CardHeader className="flex flex-row items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-lg">{combo.name}</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      {combo.currentPrice.toLocaleString("vi-VN")}đ · còn {combo.remainingStock} ·
+                      hạn dùng {new Date(combo.bestBefore).toLocaleString("vi-VN")}
+                    </p>
+                  </div>
+                  <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>
+                </CardHeader>
+                <CardContent className="flex items-center justify-between">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    nativeButton={false}
+                    render={<Link href={`/dashboard/combos/${combo.id}/edit`}>Chỉnh sửa</Link>}
+                  />
+                  <ComboStatusToggle comboId={combo.id} status={status} />
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
