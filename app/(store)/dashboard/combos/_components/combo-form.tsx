@@ -18,7 +18,10 @@ import {
 } from "@/components/ui/select";
 import type { Category } from "@/lib/domain/category";
 import type { Combo, ComboItemInput } from "@/lib/domain/combo";
-import { suggestBestBefore } from "@/lib/pricing/lock-duration/lock-duration.policy";
+import {
+  MAX_BEST_BEFORE_HOURS,
+  suggestBestBefore,
+} from "@/lib/pricing/lock-duration/lock-duration.policy";
 import { ComboImageUploader } from "@/app/(store)/dashboard/combos/_components/combo-image-uploader";
 import { createComboAction, updateComboAction } from "@/app/(store)/dashboard/combos/actions";
 
@@ -75,6 +78,16 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
     () => (selectedCategory ? suggestBestBefore(selectedCategory) : null),
     [selectedCategory]
   );
+
+  // Combos are end-of-day surplus, not a general listing — cap how far out a
+  // store owner can manually set Best Before. Covers selling past midnight
+  // (e.g. created 11pm, locks 6am next day) without allowing far-future
+  // dates. Mirrored server-side in combo.schema.ts (source of truth).
+  const bestBeforeBounds = useMemo(() => {
+    const now = new Date();
+    const max = new Date(now.getTime() + MAX_BEST_BEFORE_HOURS * 60 * 60_000);
+    return { min: toDatetimeLocal(now.toISOString()), max: toDatetimeLocal(max.toISOString()) };
+  }, []);
 
   function updateItem(index: number, patch: Partial<ComboItemInput>) {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
@@ -207,12 +220,20 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
           </p>
         )}
         {customBestBefore && (
-          <Input
-            type="datetime-local"
-            value={bestBeforeLocal}
-            onChange={(e) => setBestBeforeLocal(e.target.value)}
-            required
-          />
+          <>
+            <Input
+              type="datetime-local"
+              value={bestBeforeLocal}
+              onChange={(e) => setBestBeforeLocal(e.target.value)}
+              min={bestBeforeBounds.min}
+              max={bestBeforeBounds.max}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Tối đa {MAX_BEST_BEFORE_HOURS} giờ kể từ bây giờ — bán qua đêm vẫn chọn được, nhưng
+              không được đặt quá xa.
+            </p>
+          </>
         )}
       </div>
 

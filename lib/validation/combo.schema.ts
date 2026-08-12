@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isWithinAllowedBestBeforeRange } from "@/lib/pricing/lock-duration/lock-duration.policy";
 
 export const comboItemSchema = z.object({
   itemName: z.string().trim().min(1, "Tên món không được để trống").max(120),
@@ -22,6 +23,14 @@ export const createComboSchema = z
   .refine((data) => data.deliverySupported || data.pickupSupported, {
     message: "Combo phải hỗ trợ ít nhất một hình thức: giao hàng hoặc tự đến lấy",
     path: ["pickupSupported"],
-  });
+  })
+  .refine(
+    (data) =>
+      !data.bestBeforeOverride || isWithinAllowedBestBeforeRange(new Date(data.bestBeforeOverride)),
+    {
+      message: "Giờ khoá bán phải trong vòng 24 giờ kể từ bây giờ",
+      path: ["bestBeforeOverride"],
+    }
+  );
 
 export type CreateComboFormValues = z.infer<typeof createComboSchema>;
