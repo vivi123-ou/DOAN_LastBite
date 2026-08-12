@@ -121,7 +121,11 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="combo-category">Loại combo</Label>
-          <Select value={categoryId} onValueChange={(value) => setCategoryId(value ?? "")}>
+          <Select
+            value={categoryId}
+            onValueChange={(value) => setCategoryId(value ?? "")}
+            items={categories.map((c) => ({ value: c.id, label: c.name }))}
+          >
             <SelectTrigger id="combo-category">
               <SelectValue placeholder="Chọn loại combo" />
             </SelectTrigger>
