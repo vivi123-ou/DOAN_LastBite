@@ -13,7 +13,7 @@ create extension if not exists unaccent;
 -- expression. Wrap it in an IMMUTABLE function for indexing store/combo names.
 create or replace function f_unaccent(text) returns text
 language sql immutable parallel safe as $$
-  select unaccent('unaccent', $1)
+  select unaccent($1)
 $$;
 
 -- ============================================================================
