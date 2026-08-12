@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock, MapPin } from "lucide-react";
+import { Clock, ImageOff, MapPin } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { NearbyCombo } from "@/lib/domain/combo";
@@ -25,15 +25,25 @@ export function ComboCard({ combo }: { combo: NearbyCombo }) {
 
   return (
     <Link href={`/combos/${combo.comboId}`}>
-      <Card className="h-full transition-shadow hover:shadow-md">
-        <CardContent className="flex h-full flex-col gap-2 p-4">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-semibold leading-tight">{combo.name}</h3>
-            {discountPct > 0 && <Badge className="shrink-0">-{discountPct}%</Badge>}
-          </div>
+      <Card className="h-full gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md">
+        <div className="relative aspect-square w-full bg-muted">
+          {combo.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL
+            <img src={combo.imageUrl} alt={combo.name} className="size-full object-cover" />
+          ) : (
+            <div className="flex size-full items-center justify-center text-muted-foreground">
+              <ImageOff className="size-8" />
+            </div>
+          )}
+          {discountPct > 0 && (
+            <Badge className="absolute left-2 top-2 shadow-sm">-{discountPct}%</Badge>
+          )}
+        </div>
+        <CardContent className="flex flex-col gap-2 p-4">
+          <h3 className="font-semibold leading-tight">{combo.name}</h3>
           <p className="text-sm text-muted-foreground">{combo.storeName}</p>
 
-          <div className="mt-auto space-y-1 pt-2">
+          <div className="space-y-1 pt-1">
             <div className="flex items-baseline gap-2">
               <span className="text-lg font-bold text-primary">
                 {combo.currentPrice.toLocaleString("vi-VN")}đ

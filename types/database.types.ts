@@ -381,6 +381,7 @@ export interface Database {
           store_id: string;
           store_name: string;
           distance_m: number;
+          image_url: string | null;
         }[];
       };
     };

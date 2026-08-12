@@ -51,6 +51,7 @@ export interface NearbyCombo {
   storeId: string;
   storeName: string;
   distanceM: number;
+  imageUrl: string | null;
 }
 
 export interface CreateComboInput {

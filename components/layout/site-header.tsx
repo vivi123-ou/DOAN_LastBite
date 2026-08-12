@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Leaf, MapPin, Receipt } from "lucide-react";
+import { Leaf } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { CartBadge } from "@/components/layout/cart-badge";
+import { MainNav } from "@/components/layout/main-nav";
 import { signOut } from "@/app/(auth)/actions";
 
 export async function SiteHeader() {
@@ -28,27 +29,7 @@ export async function SiteHeader() {
           LastBite
         </Link>
 
-        <nav className="hidden items-center gap-6 text-sm font-medium sm:flex">
-          <Link href="/" className="hover:text-primary">
-            Trang chủ
-          </Link>
-          <Link href="/map" className="flex items-center gap-1 hover:text-primary">
-            <MapPin className="size-4" />
-            Bản đồ
-          </Link>
-          {role === "store_owner" ? (
-            <Link href="/dashboard" className="hover:text-primary">
-              Cửa hàng của tôi
-            </Link>
-          ) : (
-            userId && (
-              <Link href="/orders" className="flex items-center gap-1 hover:text-primary">
-                <Receipt className="size-4" />
-                Đơn hàng của tôi
-              </Link>
-            )
-          )}
-        </nav>
+        <MainNav role={role} isLoggedIn={Boolean(userId)} />
 
         <div className="flex items-center gap-2">
           {role !== "store_owner" && <CartBadge />}

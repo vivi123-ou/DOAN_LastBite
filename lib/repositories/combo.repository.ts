@@ -34,6 +34,7 @@ export async function listNearby(
     storeId: row.store_id,
     storeName: row.store_name,
     distanceM: row.distance_m,
+    imageUrl: row.image_url,
   }));
 }
 
