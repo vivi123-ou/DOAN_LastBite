@@ -66,7 +66,15 @@ export function MapView({
   }, [combos, storeLocations]);
 
   return (
-    <div className="relative h-full w-full">
+    // `isolate` contains Leaflet's own internal z-index values (its panes
+    // and controls go up to ~1000) inside this element's own stacking
+    // context, so they never leak out to compete with the site header's
+    // dropdowns (Menu/search/notifications, all z-50 — see
+    // site-menu.tsx etc.) at the page level. Without this, Leaflet's
+    // markers/controls rendered *above* the header's own menu dropdown
+    // despite the header being later/higher in the DOM — reported live on
+    // the /map page.
+    <div className="relative isolate h-full w-full">
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={14}

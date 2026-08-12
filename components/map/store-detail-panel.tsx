@@ -78,7 +78,7 @@ export function StoreDetailPanel({ storeId, onClose }: StoreDetailPanelProps) {
   }, [combos.length, hasMore]);
 
   return (
-    <div className="absolute inset-y-0 left-0 z-[1000] flex w-full max-w-sm flex-col bg-background shadow-xl sm:m-2 sm:rounded-lg">
+    <div className="absolute inset-y-0 left-0 z-[1001] flex w-full max-w-sm flex-col bg-background shadow-xl sm:m-2 sm:rounded-lg">
       <button
         type="button"
         onClick={onClose}
