@@ -30,6 +30,12 @@ const PRICE_BANDS: { key: string; label: string; min?: number; max?: number }[] 
   { key: "over-1m", label: "Trên 1.000.000đ", min: 1_000_000 },
 ];
 
+function bandKeyFor(minPrice: string, maxPrice: string): string | undefined {
+  return PRICE_BANDS.find(
+    (band) => String(band.min ?? "") === minPrice && String(band.max ?? "") === maxPrice
+  )?.key;
+}
+
 // "Gom tính năng lọc vào chỗ tìm kiếm, thành icon lọc" — sort/price/area
 // used to be their own always-visible panel below the hero (filter-bar.tsx).
 // Now it's a single icon next to the header search box (site-search.tsx),
@@ -38,29 +44,40 @@ const PRICE_BANDS: { key: string; label: string; min?: number; max?: number }[] 
 // it activates search-results mode with just a filter and no query, same
 // as search-results-section.tsx's existing `isFiltered` switch).
 //
-// Every chip here is read from the URL with no "?? default" fallback —
-// earlier versions treated the implicit default (radiusM absent = 5km) as
-// visually "selected", which meant the 5km chip always showed green even
-// when the user had never touched it, and clicking it again looked like a
-// no-op ("bấm lại để hủy chọn cũng không được"). Now a chip is only ever
-// green when its param is genuinely present in the URL, so every group
-// (sort/radius/price) is independently optional — 0, 1, 2, or 3 active at
-// once — and toggling the active chip in any group always clears it.
+// Chip clicks only edit *local draft state* now — nothing is pushed to the
+// URL (and no search fires) until "Áp dụng" is pressed. Earlier versions
+// pushed on every click, which searched on every single tap instead of
+// once the user was actually done choosing (explicit feedback). The panel
+// badge count still reflects the *applied* filters (read from the URL),
+// not the draft, so fiddling with chips before applying doesn't move it.
 export function SiteSearchFilters() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
 
-  const sort = searchParams.get("sort");
-  const minPrice = searchParams.get("minPrice") ?? "";
-  const maxPrice = searchParams.get("maxPrice") ?? "";
-  const radiusM = searchParams.get("radiusM");
+  const appliedSort = searchParams.get("sort");
+  const appliedMinPrice = searchParams.get("minPrice") ?? "";
+  const appliedMaxPrice = searchParams.get("maxPrice") ?? "";
+  const appliedRadius = searchParams.get("radiusM");
+  const appliedBandKey = bandKeyFor(appliedMinPrice, appliedMaxPrice);
+  const activeCount = (appliedSort ? 1 : 0) + (appliedBandKey ? 1 : 0) + (appliedRadius ? 1 : 0);
 
-  const activeBandKey = PRICE_BANDS.find(
-    (band) => String(band.min ?? "") === minPrice && String(band.max ?? "") === maxPrice
-  )?.key;
-  const activeCount = (sort ? 1 : 0) + (activeBandKey ? 1 : 0) + (radiusM ? 1 : 0);
+  const [draftSort, setDraftSort] = useState(appliedSort);
+  const [draftRadius, setDraftRadius] = useState(appliedRadius);
+  const [draftBandKey, setDraftBandKey] = useState(appliedBandKey);
+
+  // Re-sync the draft from whatever's actually applied at the moment the
+  // panel is opened (a genuine user-initiated event, not an effect) — so
+  // reopening later shows current reality, and any un-applied tinkering
+  // from a previous open (closed via the X / outside click instead of
+  // "Áp dụng") is discarded rather than lingering.
+  function openPanel() {
+    setDraftSort(appliedSort);
+    setDraftRadius(appliedRadius);
+    setDraftBandKey(appliedBandKey);
+    setOpen(true);
+  }
 
   useEffect(() => {
     function handlePointerDown(e: PointerEvent) {
@@ -72,36 +89,33 @@ export function SiteSearchFilters() {
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, []);
 
-  function pushParams(next: Record<string, string | undefined>) {
+  function applyFilters() {
+    const band = PRICE_BANDS.find((b) => b.key === draftBandKey);
     const params = new URLSearchParams(searchParams.toString());
+    const next: Record<string, string | undefined> = {
+      sort: draftSort ?? undefined,
+      radiusM: draftRadius ?? undefined,
+      minPrice: band?.min ? String(band.min) : undefined,
+      maxPrice: band?.max ? String(band.max) : undefined,
+    };
     for (const [key, val] of Object.entries(next)) {
       if (val) params.set(key, val);
       else params.delete(key);
     }
     router.push(`/?${params.toString()}`);
-  }
-
-  function toggleSort(value: string) {
-    pushParams({ sort: sort === value ? undefined : value });
-  }
-
-  function toggleRadius(value: string) {
-    pushParams({ radiusM: radiusM === value ? undefined : value });
-  }
-
-  function togglePriceBand(band: (typeof PRICE_BANDS)[number]) {
-    if (band.key === activeBandKey) {
-      pushParams({ minPrice: undefined, maxPrice: undefined });
-      return;
-    }
-    pushParams({
-      minPrice: band.min ? String(band.min) : undefined,
-      maxPrice: band.max ? String(band.max) : undefined,
-    });
+    setOpen(false);
   }
 
   function clearAll() {
-    pushParams({ sort: undefined, radiusM: undefined, minPrice: undefined, maxPrice: undefined });
+    setDraftSort(null);
+    setDraftRadius(null);
+    setDraftBandKey(undefined);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("sort");
+    params.delete("radiusM");
+    params.delete("minPrice");
+    params.delete("maxPrice");
+    router.push(`/?${params.toString()}`);
     setOpen(false);
   }
 
@@ -109,7 +123,7 @@ export function SiteSearchFilters() {
     <div ref={containerRef} className="relative shrink-0">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? setOpen(false) : openPanel())}
         className={`relative flex size-10 items-center justify-center rounded-md border transition-colors ${
           activeCount > 0 ? "border-primary text-primary" : "border-input text-muted-foreground hover:text-foreground"
         }`}
@@ -139,15 +153,23 @@ export function SiteSearchFilters() {
 
           <div className="space-y-4 p-4">
             <div className="space-y-2">
+              {/* "Liên quan nhất" isn't a text-relevance score — with no
+                  sort chosen, search_combos() (0008) falls through every
+                  CASE branch in its ORDER BY and lands on plain distance,
+                  same as the default homepage load. It's really "gần bạn
+                  nhất" under another name whenever a text/price filter is
+                  also active. Kept the familiar label since that's still
+                  the sensible default; not worth a confusing rename for a
+                  detail most users never need to think about. */}
               <p className="text-sm font-medium">Sắp xếp</p>
               <div className="flex flex-wrap gap-1.5">
                 {SORT_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => toggleSort(opt.value)}
+                    onClick={() => setDraftSort((s) => (s === opt.value ? null : opt.value))}
                     className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                      sort === opt.value
+                      draftSort === opt.value
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-input text-muted-foreground hover:border-primary hover:text-primary"
                     }`}
@@ -165,9 +187,9 @@ export function SiteSearchFilters() {
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => toggleRadius(opt.value)}
+                    onClick={() => setDraftRadius((r) => (r === opt.value ? null : opt.value))}
                     className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                      radiusM === opt.value
+                      draftRadius === opt.value
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-input text-muted-foreground hover:border-primary hover:text-primary"
                     }`}
@@ -185,9 +207,9 @@ export function SiteSearchFilters() {
                   <button
                     key={band.key}
                     type="button"
-                    onClick={() => togglePriceBand(band)}
+                    onClick={() => setDraftBandKey((k) => (k === band.key ? undefined : band.key))}
                     className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                      band.key === activeBandKey
+                      draftBandKey === band.key
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-input text-muted-foreground hover:border-primary hover:text-primary"
                     }`}
@@ -198,15 +220,22 @@ export function SiteSearchFilters() {
               </div>
             </div>
 
-            {activeCount > 0 && (
+            <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={clearAll}
-                className="w-full rounded-md border border-dashed py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
+                className="rounded-md border border-dashed px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
               >
                 Xoá bộ lọc
               </button>
-            )}
+              <button
+                type="button"
+                onClick={applyFilters}
+                className="flex-1 rounded-md bg-primary py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Áp dụng
+              </button>
+            </div>
           </div>
         </div>
       )}
