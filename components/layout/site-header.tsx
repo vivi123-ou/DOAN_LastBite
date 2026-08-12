@@ -1,25 +1,19 @@
 import Link from "next/link";
 import { Leaf } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getById } from "@/lib/repositories/profile.repository";
 import { Button } from "@/components/ui/button";
 import { CartBadge } from "@/components/layout/cart-badge";
 import { MainNav } from "@/components/layout/main-nav";
-import { signOut } from "@/app/(auth)/actions";
+import { UserMenu } from "@/components/layout/user-menu";
 
 export async function SiteHeader() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const userId = data?.claims.sub as string | undefined;
 
-  let role: "customer" | "store_owner" | null = null;
-  if (userId) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userId)
-      .maybeSingle();
-    role = profile?.role ?? null;
-  }
+  const profile = userId ? await getById(supabase, userId) : null;
+  const role = profile?.role ?? null;
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
@@ -33,7 +27,7 @@ export async function SiteHeader() {
 
         <div className="flex items-center gap-2">
           {role !== "store_owner" && <CartBadge />}
-          {userId ? (
+          {userId && profile ? (
             <>
               {role !== "store_owner" && (
                 <Button
@@ -43,11 +37,11 @@ export async function SiteHeader() {
                   render={<Link href="/dashboard">Kênh cửa hàng</Link>}
                 />
               )}
-              <form action={signOut}>
-                <Button variant="outline" size="sm" type="submit">
-                  Đăng xuất
-                </Button>
-              </form>
+              <UserMenu
+                fullName={profile.fullName}
+                avatarUrl={profile.avatarUrl}
+                email={(data?.claims.email as string) ?? null}
+              />
             </>
           ) : (
             <>

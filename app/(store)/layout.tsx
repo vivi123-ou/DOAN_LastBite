@@ -1,18 +1,20 @@
 import type { ReactNode } from "react";
-import { StoreNav } from "@/app/(store)/_components/store-nav";
+import { StoreSidebar } from "@/app/(store)/_components/store-sidebar";
 
-// Deliberately doesn't wrap {children} in its own max-w/padding container —
-// each page under (store) already has one (matching the rest of the app's
-// per-page container convention) — this just adds the shared tab nav above.
+// Left-sidebar shell for the whole store area — the YouTube Studio-style
+// "different mode" signal (see the header's distinct "Cửa hàng của tôi"
+// pill in main-nav.tsx for the other half of that signal). Sticky under the
+// h-16 site header on sm+; collapses to a plain horizontal row above the
+// content on mobile, consistent with main-nav.tsx also only showing on sm+.
+// Individual dashboard pages keep their own max-w/padding wrapper — this
+// layout only adds the sidebar alongside them.
 export default function StoreLayout({ children }: { children: ReactNode }) {
   return (
-    <div>
-      <div className="border-b">
-        <div className="mx-auto max-w-3xl px-4">
-          <StoreNav />
-        </div>
-      </div>
-      {children}
+    <div className="mx-auto flex max-w-6xl flex-col sm:flex-row">
+      <aside className="border-b px-3 py-3 sm:sticky sm:top-16 sm:h-[calc(100vh-4rem)] sm:w-56 sm:shrink-0 sm:border-b-0 sm:border-r sm:py-6">
+        <StoreSidebar />
+      </aside>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
