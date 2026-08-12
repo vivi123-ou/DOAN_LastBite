@@ -1,10 +1,15 @@
 -- Additive migration (see .claude/rules/database-and-schema.md — 0001-0005
--- are never edited). Redefines nearby_combos() via create or replace
--- (allowed — this changes a function body, not a table) to also return each
--- combo's first image, so listing cards can show a real photo instead of a
+-- are never edited). Redefines nearby_combos() to also return each combo's
+-- first image, so listing cards can show a real photo instead of a
 -- text-only card.
+--
+-- Postgres won't let CREATE OR REPLACE change a function's return row type
+-- (adding image_url here counts as that) — has to be dropped and recreated
+-- instead. Fine to drop: it's a pure function, no data lives in it.
 
-create or replace function nearby_combos(
+drop function if exists nearby_combos(float8, float8, int, int, uuid);
+
+create function nearby_combos(
   in_lat float8,
   in_lng float8,
   radius_m int default 5000,
