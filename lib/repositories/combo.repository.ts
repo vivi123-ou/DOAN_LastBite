@@ -130,9 +130,19 @@ async function hydrate(
 // radius of a partial failure to a harmless draft with no items, rather than
 // a "live" combo with missing contents. A true multi-statement transaction
 // would need a Postgres function; not worth it for a solo phase-1 scope.
+//
+// storeName/storeAddressLine are passed in rather than re-queried here —
+// callers (dashboard/combos/actions.ts) already have the Store from
+// resolving the current user's store, so re-fetching it after every write
+// was a wasted round trip. Items and images inserts are independent of each
+// other and run in parallel for the same reason (see combo-detail perf
+// investigation — Supabase's per-request latency adds up fast when calls
+// that don't depend on each other are still awaited sequentially).
 export async function create(
   client: SupabaseClient<Database>,
-  built: BuiltCombo
+  built: BuiltCombo,
+  storeName: string,
+  storeAddressLine: string
 ): Promise<Combo> {
   const { data: combo, error } = await client
     .from("combos")
@@ -141,19 +151,18 @@ export async function create(
     .single();
   if (error) throw error;
 
-  if (built.items.length > 0) {
-    const { error: itemsError } = await client
-      .from("combo_items")
-      .insert(built.items.map((item) => ({ ...item, combo_id: combo.id })));
-    if (itemsError) throw itemsError;
-  }
-
-  if (built.imageUrls.length > 0) {
-    const { error: imagesError } = await client.from("combo_images").insert(
-      built.imageUrls.map((url, index) => ({ combo_id: combo.id, url, sort_order: index }))
-    );
-    if (imagesError) throw imagesError;
-  }
+  const [itemsResult, imagesResult] = await Promise.all([
+    built.items.length > 0
+      ? client.from("combo_items").insert(built.items.map((item) => ({ ...item, combo_id: combo.id })))
+      : Promise.resolve({ error: null }),
+    built.imageUrls.length > 0
+      ? client
+          .from("combo_images")
+          .insert(built.imageUrls.map((url, index) => ({ combo_id: combo.id, url, sort_order: index })))
+      : Promise.resolve({ error: null }),
+  ]);
+  if (itemsResult.error) throw itemsResult.error;
+  if (imagesResult.error) throw imagesResult.error;
 
   const { data: activated, error: activateError } = await client
     .from("combos")
@@ -163,19 +172,15 @@ export async function create(
     .single();
   if (activateError) throw activateError;
 
-  const { data: store } = await client
-    .from("stores")
-    .select("name, address_line")
-    .eq("id", activated.store_id)
-    .single();
-
-  return hydrate(client, activated, store?.name ?? "", store?.address_line ?? "");
+  return hydrate(client, activated, storeName, storeAddressLine);
 }
 
 export async function update(
   client: SupabaseClient<Database>,
   id: string,
-  built: BuiltCombo
+  built: BuiltCombo,
+  storeName: string,
+  storeAddressLine: string
 ): Promise<Combo> {
   const { data: combo, error } = await client
     .from("combos")
@@ -185,39 +190,29 @@ export async function update(
     .single();
   if (error) throw error;
 
-  const { error: deleteItemsError } = await client
-    .from("combo_items")
-    .delete()
-    .eq("combo_id", id);
-  if (deleteItemsError) throw deleteItemsError;
+  // The items delete+insert and images delete+insert are two independent
+  // chains (neither touches the other's table) — run them concurrently
+  // instead of as four sequential round trips.
+  const [itemsResult, imagesResult] = await Promise.all([
+    (async () => {
+      const { error: deleteError } = await client.from("combo_items").delete().eq("combo_id", id);
+      if (deleteError) return { error: deleteError };
+      if (built.items.length === 0) return { error: null };
+      return client.from("combo_items").insert(built.items.map((item) => ({ ...item, combo_id: id })));
+    })(),
+    (async () => {
+      const { error: deleteError } = await client.from("combo_images").delete().eq("combo_id", id);
+      if (deleteError) return { error: deleteError };
+      if (built.imageUrls.length === 0) return { error: null };
+      return client
+        .from("combo_images")
+        .insert(built.imageUrls.map((url, index) => ({ combo_id: id, url, sort_order: index })));
+    })(),
+  ]);
+  if (itemsResult.error) throw itemsResult.error;
+  if (imagesResult.error) throw imagesResult.error;
 
-  if (built.items.length > 0) {
-    const { error: itemsError } = await client
-      .from("combo_items")
-      .insert(built.items.map((item) => ({ ...item, combo_id: id })));
-    if (itemsError) throw itemsError;
-  }
-
-  const { error: deleteImagesError } = await client
-    .from("combo_images")
-    .delete()
-    .eq("combo_id", id);
-  if (deleteImagesError) throw deleteImagesError;
-
-  if (built.imageUrls.length > 0) {
-    const { error: imagesError } = await client.from("combo_images").insert(
-      built.imageUrls.map((url, index) => ({ combo_id: id, url, sort_order: index }))
-    );
-    if (imagesError) throw imagesError;
-  }
-
-  const { data: store } = await client
-    .from("stores")
-    .select("name, address_line")
-    .eq("id", combo.store_id)
-    .single();
-
-  return hydrate(client, combo, store?.name ?? "", store?.address_line ?? "");
+  return hydrate(client, combo, storeName, storeAddressLine);
 }
 
 export async function updateStatus(

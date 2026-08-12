@@ -16,10 +16,13 @@ async function buildComboForCurrentStore(input: unknown) {
   const userId = await getCurrentUserId(supabase);
   if (!userId) throw new Error("Bạn cần đăng nhập trước.");
 
-  const store = await getStoreByOwnerId(supabase, userId);
+  // Independent lookups — run concurrently instead of two sequential
+  // round trips to Supabase.
+  const [store, category] = await Promise.all([
+    getStoreByOwnerId(supabase, userId),
+    getCategoryById(supabase, parsed.categoryId),
+  ]);
   if (!store) throw new Error("Bạn cần đăng ký cửa hàng trước khi tạo combo.");
-
-  const category = await getCategoryById(supabase, parsed.categoryId);
   if (!category) throw new Error("Loại combo không hợp lệ.");
 
   const built = ComboBuilder.build(
@@ -43,14 +46,14 @@ async function buildComboForCurrentStore(input: unknown) {
 }
 
 export async function createComboAction(input: unknown) {
-  const { supabase, built } = await buildComboForCurrentStore(input);
-  await comboRepository.create(supabase, built);
+  const { supabase, store, built } = await buildComboForCurrentStore(input);
+  await comboRepository.create(supabase, built, store.name, store.addressLine);
   revalidatePath("/dashboard/combos");
 }
 
 export async function updateComboAction(comboId: string, input: unknown) {
-  const { supabase, built } = await buildComboForCurrentStore(input);
-  await comboRepository.update(supabase, comboId, built);
+  const { supabase, store, built } = await buildComboForCurrentStore(input);
+  await comboRepository.update(supabase, comboId, built, store.name, store.addressLine);
   revalidatePath("/dashboard/combos");
   revalidatePath(`/dashboard/combos/${comboId}/edit`);
 }

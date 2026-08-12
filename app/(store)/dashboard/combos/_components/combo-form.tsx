@@ -308,7 +308,10 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
         {!customBestBefore && suggestedBestBefore && (
           <p className="text-sm text-muted-foreground">
             Đề xuất tự động theo loại combo: khoá lúc{" "}
-            <strong>{suggestedBestBefore.toLocaleString("vi-VN")}</strong>
+            {/* suggestedBestBefore is computed from a live `new Date()`, so the
+                server-rendered instant and the client-hydrated instant differ
+                by however long the request took — expected, not a real bug. */}
+            <strong suppressHydrationWarning>{suggestedBestBefore.toLocaleString("vi-VN")}</strong>
           </p>
         )}
         {customBestBefore && (
@@ -346,7 +349,7 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
               {suggestedBestBefore && (
                 <>
                   {" "}
-                  (<strong>{suggestedBestBefore.toLocaleString("vi-VN")}</strong>)
+                  (<strong suppressHydrationWarning>{suggestedBestBefore.toLocaleString("vi-VN")}</strong>)
                 </>
               )}
               , không được trễ hơn. Giờ hợp lệ cho ngày đang chọn:{" "}
