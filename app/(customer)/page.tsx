@@ -5,7 +5,7 @@ import { getCurrentUserId } from "@/lib/supabase/auth";
 import { listCategories } from "@/lib/repositories/category.repository";
 import { getTopPurchasedCategoryIds } from "@/lib/repositories/order.repository";
 import { CategoryRail } from "@/app/(customer)/_components/category-rail";
-import { SearchBar } from "@/app/(customer)/_components/search-bar";
+import { FilterBar } from "@/app/(customer)/_components/filter-bar";
 import { NearbyCombosSection } from "@/app/(customer)/_components/nearby-combos-section";
 import { RecommendedSection } from "@/app/(customer)/_components/recommended-section";
 
@@ -60,7 +60,7 @@ export default async function HomePage({
       </section>
 
       <Suspense>
-        <SearchBar />
+        <FilterBar />
       </Suspense>
 
       <section className="space-y-3">

@@ -20,6 +20,10 @@ export async function GET(request: NextRequest) {
 
   const minPrice = params.get("minPrice");
   const maxPrice = params.get("maxPrice");
+  // Header live-search (site-search.tsx) asks for a small `limit` for its
+  // dropdown preview; the full results page (nearby-combos-section.tsx)
+  // omits it and gets the search_combos() default (30).
+  const limit = params.get("limit");
 
   const supabase = await createClient();
   const combos = await search(supabase, lat, lng, {
@@ -27,6 +31,7 @@ export async function GET(request: NextRequest) {
     categoryId: params.get("categoryId") ?? undefined,
     minPrice: minPrice ? Number(minPrice) : undefined,
     maxPrice: maxPrice ? Number(maxPrice) : undefined,
+    maxResults: limit ? Number(limit) : undefined,
     sortBy,
   });
 

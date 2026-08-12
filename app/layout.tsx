@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/layout/site-header";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { CartProvider } from "@/lib/cart/cart-context";
 import "./globals.css";
 
@@ -27,17 +28,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html
+      lang="vi"
+      className={`${geistSans.variable} ${geistMono.variable} h-full scroll-smooth antialiased`}
+    >
       <body
         className="min-h-full flex flex-col bg-background text-foreground"
         suppressHydrationWarning
       >
-        {/* CartProvider is a Client Component, but SiteHeader (Server
-            Component) can still be passed into it as children — Next.js
-            renders the server subtree first and hands it down opaquely. */}
+        {/* CartProvider is a Client Component, but SiteHeader/SiteFooter
+            (Server Components) can still be passed into it as children —
+            Next.js renders the server subtree first and hands it down
+            opaquely. SiteFooter carries id="site-footer", the scroll target
+            for every "Về chúng tôi" sidebar link (site-sidebar.tsx). */}
         <CartProvider>
           <SiteHeader />
           <main className="flex-1">{children}</main>
+          <SiteFooter />
           <Toaster />
         </CartProvider>
       </body>
