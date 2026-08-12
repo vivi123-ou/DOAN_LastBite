@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
-import Link from "next/link";
+import { useMemo, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { NearbyCombo } from "@/lib/domain/combo";
+import { StoreDetailPanel } from "@/components/map/store-detail-panel";
 
 // Bundlers break Leaflet's default marker icon path resolution — point it at
 // the CDN copies instead of trying to wire up local asset imports.
@@ -42,6 +42,8 @@ export function MapView({
   storeLocations: Record<string, { lat: number; lng: number }>;
   center: { lat: number; lng: number };
 }) {
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+
   const groups = useMemo(() => {
     const byStore = new Map<string, StoreGroup>();
     for (const combo of combos) {
@@ -64,37 +66,40 @@ export function MapView({
   }, [combos, storeLocations]);
 
   return (
-    <MapContainer
-      center={[center.lat, center.lng]}
-      zoom={14}
-      scrollWheelZoom
-      className="h-full w-full"
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <Marker position={[center.lat, center.lng]} icon={userIcon}>
-        <Popup>Vị trí của bạn</Popup>
-      </Marker>
-      {groups.map((group) => (
-        <Marker key={group.storeId} position={[group.lat, group.lng]} icon={defaultIcon}>
-          <Popup>
-            <div className="space-y-1">
-              <p className="font-semibold">{group.storeName}</p>
-              <ul className="space-y-0.5">
-                {group.combos.map((combo) => (
-                  <li key={combo.comboId}>
-                    <Link href={`/combos/${combo.comboId}`} className="text-primary hover:underline">
-                      {combo.name} — {combo.currentPrice.toLocaleString("vi-VN")}đ
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </Popup>
+    <div className="relative h-full w-full">
+      <MapContainer
+        center={[center.lat, center.lng]}
+        zoom={14}
+        scrollWheelZoom
+        className="h-full w-full"
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <Marker position={[center.lat, center.lng]} icon={userIcon}>
+          <Popup>Vị trí của bạn</Popup>
         </Marker>
-      ))}
-    </MapContainer>
+        {groups.map((group) => (
+          <Marker
+            key={group.storeId}
+            position={[group.lat, group.lng]}
+            icon={defaultIcon}
+            eventHandlers={{ click: () => setSelectedStoreId(group.storeId) }}
+          />
+        ))}
+      </MapContainer>
+
+      {/* Replaces the old per-marker Leaflet Popup — clicking a store pin
+          now opens this full detail panel (banner, address, paginated
+          combo list) on the left instead of a small inline list. */}
+      {selectedStoreId && (
+        <StoreDetailPanel
+          key={selectedStoreId}
+          storeId={selectedStoreId}
+          onClose={() => setSelectedStoreId(null)}
+        />
+      )}
+    </div>
   );
 }

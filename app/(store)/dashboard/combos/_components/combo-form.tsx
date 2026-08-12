@@ -80,6 +80,18 @@ function formatThousands(digits: string): string {
 export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps) {
   const router = useRouter();
   const isEdit = Boolean(initialCombo);
+  // A combo whose best_before has already passed is still 'active' in the
+  // DB (no scheduled sweep flips it — see CLAUDE.md §7), so editing it
+  // already works as a relist: recomputing best_before + remaining_stock
+  // via the same ComboBuilder used at creation is all "Bán lại" needs. The
+  // one real gap was UX, not data: editing pre-filled the *stale, already-
+  // past* custom date (customBestBefore defaulted to true for any edit),
+  // which then sat outside the now-valid [today, suggested] range. For an
+  // expired combo, start from the fresh auto-suggested time instead — the
+  // owner can still flip "Tuỳ chỉnh" on if they want something else.
+  const isExpiredCombo = Boolean(
+    initialCombo && new Date(initialCombo.bestBefore).getTime() <= new Date().getTime()
+  );
 
   const [categoryId, setCategoryId] = useState(initialCombo?.categoryId ?? categories[0]?.id ?? "");
   const [name, setName] = useState(initialCombo?.name ?? "");
@@ -98,12 +110,12 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
     })) ?? [{ itemName: "", quantity: 1 }]
   );
   const [imageUrls, setImageUrls] = useState<string[]>(initialCombo?.images ?? []);
-  const [customBestBefore, setCustomBestBefore] = useState(Boolean(initialCombo));
+  const [customBestBefore, setCustomBestBefore] = useState(Boolean(initialCombo) && !isExpiredCombo);
   const [bestBeforeDate, setBestBeforeDate] = useState(
-    initialCombo ? toDateOnly(new Date(initialCombo.bestBefore)) : ""
+    initialCombo && !isExpiredCombo ? toDateOnly(new Date(initialCombo.bestBefore)) : ""
   );
   const [bestBeforeTime, setBestBeforeTime] = useState(
-    initialCombo ? toTimeOnly(new Date(initialCombo.bestBefore)) : ""
+    initialCombo && !isExpiredCombo ? toTimeOnly(new Date(initialCombo.bestBefore)) : ""
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -231,6 +243,13 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {isExpiredCombo && (
+        <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
+          Combo này đã hết hạn. Đặt giờ khoá bán và số lượng mới bên dưới rồi lưu lại để bán lại —
+          không cần tạo combo mới.
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="combo-category">Loại combo</Label>
@@ -422,7 +441,7 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Button type="submit" disabled={submitting}>
-        {submitting ? "Đang lưu..." : isEdit ? "Lưu thay đổi" : "Tạo combo"}
+        {submitting ? "Đang lưu..." : isExpiredCombo ? "Bán lại" : isEdit ? "Lưu thay đổi" : "Tạo combo"}
       </Button>
     </form>
   );

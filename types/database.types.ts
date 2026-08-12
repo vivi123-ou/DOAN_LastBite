@@ -69,6 +69,7 @@ export interface Database {
           verification_status: "pending" | "verified" | "rejected" | "suspended";
           tier: "free" | "premium";
           logo_url: string | null;
+          banner_url: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;

@@ -56,6 +56,19 @@ export interface NearbyCombo {
   pickupSupported: boolean;
 }
 
+// Slim shape for the map's store detail panel (store-detail-panel.tsx) —
+// deliberately not NearbyCombo: there's no meaningful "distance" to show
+// (you're already looking at this exact store) and no delivery/pickup
+// flags needed since the panel is browse-only, not add-to-cart.
+export interface StoreComboSummary {
+  comboId: string;
+  name: string;
+  currentPrice: number;
+  originalPrice: number;
+  bestBefore: string;
+  imageUrl: string | null;
+}
+
 export interface CreateComboInput {
   storeId: string;
   categoryId: string;

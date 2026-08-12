@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
-import type { RegisterStoreInput, Store } from "@/lib/domain/store";
+import type { RegisterStoreInput, Store, UpdateStoreInput } from "@/lib/domain/store";
 
 type StoreRow = Database["public"]["Tables"]["stores"]["Row"];
 
@@ -16,9 +16,23 @@ function toDomain(row: StoreRow): Store {
     verificationStatus: row.verification_status,
     tier: row.tier,
     logoUrl: row.logo_url,
+    bannerUrl: row.banner_url,
     isActive: row.is_active,
     createdAt: row.created_at,
   };
+}
+
+// Public store detail lookup — the map's store detail panel
+// (components/map/store-detail-panel.tsx) — stores_select_public RLS
+// (0001) already scopes this to verified + active stores for any caller,
+// same visibility rule as everywhere else customer-facing.
+export async function getById(
+  client: SupabaseClient<Database>,
+  storeId: string
+): Promise<Store | null> {
+  const { data, error } = await client.from("stores").select("*").eq("id", storeId).maybeSingle();
+  if (error) throw error;
+  return data ? toDomain(data) : null;
 }
 
 // Store picker for the group-buy invite flow (friends/[friendshipId]
@@ -124,5 +138,31 @@ export async function registerStore(
     .eq("id", ownerId);
   if (roleError) throw roleError;
 
+  return toDomain(data);
+}
+
+// stores_update_own RLS (0001) already scopes this to the caller's own
+// store — regular client, same-actor write, no service-role needed.
+export async function updateStore(
+  client: SupabaseClient<Database>,
+  storeId: string,
+  input: UpdateStoreInput
+): Promise<Store> {
+  const { data, error } = await client
+    .from("stores")
+    .update({
+      name: input.name,
+      description: input.description ?? null,
+      address_line: input.addressLine,
+      geog: `SRID=4326;POINT(${input.lng} ${input.lat})`,
+      lat: input.lat,
+      lng: input.lng,
+      ...(input.logoUrl !== undefined && { logo_url: input.logoUrl }),
+      ...(input.bannerUrl !== undefined && { banner_url: input.bannerUrl }),
+    })
+    .eq("id", storeId)
+    .select("*")
+    .single();
+  if (error) throw error;
   return toDomain(data);
 }

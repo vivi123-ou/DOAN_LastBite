@@ -91,10 +91,14 @@ export default async function StoreCombosPage() {
                 </CardHeader>
                 <CardContent className="flex items-center justify-between">
                   <Button
-                    variant="ghost"
+                    variant={status === "locked" ? "outline" : "ghost"}
                     size="sm"
                     nativeButton={false}
-                    render={<Link href={`/dashboard/combos/${combo.id}/edit`}>Chỉnh sửa</Link>}
+                    render={
+                      <Link href={`/dashboard/combos/${combo.id}/edit`}>
+                        {status === "locked" ? "Bán lại" : "Chỉnh sửa"}
+                      </Link>
+                    }
                   />
                   <ComboStatusToggle comboId={combo.id} status={status} />
                 </CardContent>

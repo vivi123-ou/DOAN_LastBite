@@ -1,9 +1,67 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
-import type { Combo, ComboSnapshot, ComboStatus, NearbyCombo } from "@/lib/domain/combo";
+import type {
+  Combo,
+  ComboSnapshot,
+  ComboStatus,
+  NearbyCombo,
+  StoreComboSummary,
+} from "@/lib/domain/combo";
 import type { BuiltCombo } from "@/lib/factories/combo.builder";
 
 type ComboRow = Database["public"]["Tables"]["combos"]["Row"];
+
+// Paginated, store-scoped listing for the map's store detail panel
+// (store-detail-panel.tsx) — "kéo tới đâu hiển thị tới đó" (load-as-you-
+// scroll, not the whole store's catalog at once). Two queries rather than
+// an embedded combo_images select: this file's own hydrate() already
+// established that pattern (separate items/images queries) for
+// combos/combo_images, and database.types.ts here is hand-maintained with
+// empty Relationships arrays, so a typed embedded select wouldn't type-
+// check cleanly anyway. Same best_before > now() rule as
+// 0011_best_before_listing_filter.sql — an expired combo shouldn't show
+// here either, even from the store's own detail panel.
+export async function listActiveByStorePaginated(
+  client: SupabaseClient<Database>,
+  storeId: string,
+  { limit = 10, offset = 0 }: { limit?: number; offset?: number } = {}
+): Promise<{ combos: StoreComboSummary[]; hasMore: boolean }> {
+  const { data: rows, error, count } = await client
+    .from("combos")
+    .select("id, name, current_price, original_price, best_before", { count: "exact" })
+    .eq("store_id", storeId)
+    .eq("status", "active")
+    .gt("best_before", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+  if (rows.length === 0) return { combos: [], hasMore: false };
+
+  const ids = rows.map((r) => r.id);
+  const { data: images, error: imagesError } = await client
+    .from("combo_images")
+    .select("combo_id, url, sort_order")
+    .in("combo_id", ids)
+    .order("sort_order");
+  if (imagesError) throw imagesError;
+
+  const firstImageByCombo = new Map<string, string>();
+  for (const img of images) {
+    if (!firstImageByCombo.has(img.combo_id)) firstImageByCombo.set(img.combo_id, img.url);
+  }
+
+  return {
+    combos: rows.map((r) => ({
+      comboId: r.id,
+      name: r.name,
+      currentPrice: r.current_price,
+      originalPrice: r.original_price,
+      bestBefore: r.best_before,
+      imageUrl: firstImageByCombo.get(r.id) ?? null,
+    })),
+    hasMore: count !== null && offset + limit < count,
+  };
+}
 
 // Backed by the nearby_combos() SQL function, which orders via the PostGIS
 // GiST index's KNN operator (`<->`) and filters via ST_DWithin — never a

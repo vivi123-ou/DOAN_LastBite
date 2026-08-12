@@ -4,8 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SlidersHorizontal, X } from "lucide-react";
 
+// No "Liên quan nhất" chip — per explicit feedback it was confusing (it
+// wasn't a real relevance score anyway, just distance under another name —
+// see the comment further down where it's still explained for context).
+// Removing the chip doesn't remove that fallback behavior: no sort chip
+// picked still means the same "nearest first" default it always meant.
 const SORT_OPTIONS = [
-  { value: "relevance", label: "Liên quan nhất" },
   { value: "newest", label: "Mới nhất" },
   { value: "price_asc", label: "Giá thấp đến cao" },
 ];
