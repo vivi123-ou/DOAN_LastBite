@@ -6,6 +6,18 @@
 -- bare `<->` expression, not one wrapped in a sort-mode CASE. Search/price-
 -- sort needs a different ORDER BY shape, hence a separate function per the
 -- "add a new SQL function if you need a new geo query shape" rule.
+--
+-- Was already applied once as a plain `create function` before this edit —
+-- edited in place anyway per .claude/rules/database-and-schema.md's spirit
+-- (it hadn't shipped to the app yet at that point) rather than layering a
+-- 0009 on top just for this. This now also returns delivery_supported/
+-- pickup_supported (so listing cards can render a working "Thêm vào giỏ
+-- hàng" button without a second round trip) and adds a 'newest' sort mode
+-- (order by created_at desc) for the homepage's "Mới nhất" tab. Re-running
+-- this file replaces the live function — same "can't change a function's
+-- return row shape with CREATE OR REPLACE" issue 0006 hit, so drop first.
+
+drop function if exists search_combos(float8, float8, text, int, int, uuid, numeric, numeric, text);
 
 create function search_combos(
   in_lat float8,
@@ -26,7 +38,9 @@ create function search_combos(
   store_id uuid,
   store_name text,
   distance_m float8,
-  image_url text
+  image_url text,
+  delivery_supported boolean,
+  pickup_supported boolean
 )
 language sql stable as $$
   select
@@ -38,7 +52,9 @@ language sql stable as $$
     s.id,
     s.name,
     st_distance(s.geog, st_setsrid(st_makepoint(in_lng, in_lat), 4326)::geography),
-    ci.url
+    ci.url,
+    c.delivery_supported,
+    c.pickup_supported
   from combos c
   join stores s on s.id = c.store_id
   left join lateral (
@@ -64,6 +80,7 @@ language sql stable as $$
   order by
     case when sort_by = 'price_asc' then c.current_price end asc,
     case when sort_by = 'price_desc' then c.current_price end desc,
+    case when sort_by = 'newest' then c.created_at end desc,
     st_distance(s.geog, st_setsrid(st_makepoint(in_lng, in_lat), 4326)::geography) asc
   limit max_results;
 $$;

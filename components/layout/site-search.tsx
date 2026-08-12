@@ -14,7 +14,7 @@ const DROPDOWN_LIMIT = 6;
 // Global, always-in-header instant-search (inbook.vn's header search is the
 // reference — type a name, get a small dropdown of matching products with
 // thumbnail + price, "Xem tất cả kết quả" at the bottom). Separate concern
-// from the homepage's own SearchBar (sort + price-range filter panel):
+// from site-search-filters.tsx (sort + price-range + area filter icon):
 // this one is for fast type-ahead jump-to-product from *any* page, that one
 // is for deliberate browsing once already on the homepage.
 export function SiteSearch() {

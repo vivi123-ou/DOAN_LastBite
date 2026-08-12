@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { search, type SearchComboOptions } from "@/lib/repositories/combo.repository";
 
-const SORT_VALUES = ["relevance", "price_asc", "price_desc"] as const;
+const SORT_VALUES = ["relevance", "price_asc", "price_desc", "newest"] as const;
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
 
   const minPrice = params.get("minPrice");
   const maxPrice = params.get("maxPrice");
+  const radius = params.get("radiusM");
   // Header live-search (site-search.tsx) asks for a small `limit` for its
   // dropdown preview; the full results page (nearby-combos-section.tsx)
   // omits it and gets the search_combos() default (30).
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
     minPrice: minPrice ? Number(minPrice) : undefined,
     maxPrice: maxPrice ? Number(maxPrice) : undefined,
     maxResults: limit ? Number(limit) : undefined,
+    radiusM: radius ? Number(radius) : undefined,
     sortBy,
   });
 

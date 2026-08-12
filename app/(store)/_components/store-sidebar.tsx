@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Package, Receipt } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, Package, Receipt } from "lucide-react";
 
 const ITEMS = [
   { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
@@ -13,13 +13,23 @@ const ITEMS = [
 // Vertical, persistent-sidebar version of the store nav (see
 // app/(store)/layout.tsx) — the "you're in a different mode now" signal for
 // the store area, YouTube Studio-style. Same filled-pill active state as
-// components/layout/main-nav.tsx for a consistent visual language between
-// the two nav levels.
+// the header's site-menu.tsx dropdown for a consistent visual language
+// between the two nav levels.
 export function StoreSidebar() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-row gap-1 overflow-x-auto sm:flex-col sm:overflow-visible">
+    <nav className="flex flex-row flex-wrap items-center gap-1 sm:flex-col sm:items-stretch">
+      {/* The explicit "you're stuck here otherwise" exit, called out in
+          user feedback — YouTube Studio's own header lets you click back to
+          regular YouTube the same way. */}
+      <Link
+        href="/"
+        className="mb-1 flex shrink-0 items-center gap-2.5 rounded-full border border-dashed px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary sm:mb-2"
+      >
+        <ArrowLeft className="size-4" />
+        Về trang người dùng
+      </Link>
       {ITEMS.map(({ href, label, icon: Icon }) => {
         const isActive = href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
         return (

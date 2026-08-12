@@ -11,14 +11,19 @@ import type { NearbyCombo } from "@/lib/domain/combo";
 
 type Status = "locating" | "loading" | "ready" | "denied" | "error";
 
-export function NearbyCombosSection() {
+// Renders instead of ComboTabsSection whenever a search/filter is active
+// (q / sort / minPrice / maxPrice / radiusM in the URL — see page.tsx's
+// switch). Always goes through search_combos() (see combo.repository.ts's
+// search()) rather than nearby_combos() — this view exists precisely
+// *because* a filter/sort beyond pure distance is in play.
+export function SearchResultsSection() {
   const searchParams = useSearchParams();
   const categoryId = searchParams.get("categoryId");
   const query = searchParams.get("q");
   const sort = searchParams.get("sort");
   const minPrice = searchParams.get("minPrice");
   const maxPrice = searchParams.get("maxPrice");
-  const isFiltered = Boolean(query || sort || minPrice || maxPrice);
+  const radiusM = searchParams.get("radiusM");
 
   const [status, setStatus] = useState<Status>("locating");
   const [combos, setCombos] = useState<NearbyCombo[]>([]);
@@ -33,19 +38,13 @@ export function NearbyCombosSection() {
 
         const params = new URLSearchParams({ lat: String(lat), lng: String(lng) });
         if (categoryId) params.set("categoryId", categoryId);
+        if (query) params.set("q", query);
+        if (sort) params.set("sort", sort);
+        if (minPrice) params.set("minPrice", minPrice);
+        if (maxPrice) params.set("maxPrice", maxPrice);
+        if (radiusM) params.set("radiusM", radiusM);
 
-        // Any active search/price/sort filter switches to search_combos()
-        // (see combo.repository.ts) instead of the default nearby_combos()
-        // load — different ORDER BY shape, see 0008_search_combos.sql.
-        const endpoint = isFiltered ? "/api/combos/search" : "/api/combos/nearby";
-        if (isFiltered) {
-          if (query) params.set("q", query);
-          if (sort) params.set("sort", sort);
-          if (minPrice) params.set("minPrice", minPrice);
-          if (maxPrice) params.set("maxPrice", maxPrice);
-        }
-
-        const res = await fetch(`${endpoint}?${params.toString()}`);
+        const res = await fetch(`/api/combos/search?${params.toString()}`);
         if (cancelled) return;
         if (!res.ok) {
           setStatus("error");
@@ -73,13 +72,13 @@ export function NearbyCombosSection() {
     return () => {
       cancelled = true;
     };
-  }, [categoryId, query, sort, minPrice, maxPrice, isFiltered]);
+  }, [categoryId, query, sort, minPrice, maxPrice, radiusM]);
 
   if (status === "locating" || status === "loading") {
     return (
       <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
         <MapPin className="size-4 animate-pulse" />
-        Đang tìm combo gần bạn...
+        Đang tìm combo phù hợp...
       </p>
     );
   }
@@ -99,5 +98,5 @@ export function NearbyCombosSection() {
     );
   }
 
-  return <ComboList combos={combos} />;
+  return <ComboList combos={combos} tag="Kết quả tìm kiếm" />;
 }

@@ -40,7 +40,7 @@ export default function RootLayout({
             (Server Components) can still be passed into it as children —
             Next.js renders the server subtree first and hands it down
             opaquely. SiteFooter carries id="site-footer", the scroll target
-            for every "Về chúng tôi" sidebar link (site-sidebar.tsx). */}
+            for every "Về chúng tôi" menu link (site-menu.tsx). */}
         <CartProvider>
           <SiteHeader />
           <main className="flex-1">{children}</main>

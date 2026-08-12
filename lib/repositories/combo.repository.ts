@@ -35,6 +35,8 @@ export async function listNearby(
     storeName: row.store_name,
     distanceM: row.distance_m,
     imageUrl: row.image_url,
+    deliverySupported: row.delivery_supported,
+    pickupSupported: row.pickup_supported,
   }));
 }
 
@@ -45,7 +47,7 @@ export interface SearchComboOptions {
   categoryId?: string;
   minPrice?: number;
   maxPrice?: number;
-  sortBy?: "relevance" | "price_asc" | "price_desc";
+  sortBy?: "relevance" | "price_asc" | "price_desc" | "newest";
 }
 
 // Backed by search_combos() (0008_search_combos.sql) — a separate RPC from
@@ -83,6 +85,8 @@ export async function search(
     storeName: row.store_name,
     distanceM: row.distance_m,
     imageUrl: row.image_url,
+    deliverySupported: row.delivery_supported,
+    pickupSupported: row.pickup_supported,
   }));
 }
 

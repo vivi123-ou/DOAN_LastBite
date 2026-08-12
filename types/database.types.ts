@@ -382,6 +382,8 @@ export interface Database {
           store_name: string;
           distance_m: number;
           image_url: string | null;
+          delivery_supported: boolean;
+          pickup_supported: boolean;
         }[];
       };
       search_combos: {
@@ -406,6 +408,8 @@ export interface Database {
           store_name: string;
           distance_m: number;
           image_url: string | null;
+          delivery_supported: boolean;
+          pickup_supported: boolean;
         }[];
       };
     };

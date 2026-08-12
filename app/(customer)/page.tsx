@@ -5,16 +5,24 @@ import { getCurrentUserId } from "@/lib/supabase/auth";
 import { listCategories } from "@/lib/repositories/category.repository";
 import { getTopPurchasedCategoryIds } from "@/lib/repositories/order.repository";
 import { CategoryRail } from "@/app/(customer)/_components/category-rail";
-import { FilterBar } from "@/app/(customer)/_components/filter-bar";
-import { NearbyCombosSection } from "@/app/(customer)/_components/nearby-combos-section";
-import { RecommendedSection } from "@/app/(customer)/_components/recommended-section";
+import { ComboTabsSection } from "@/app/(customer)/_components/combo-tabs-section";
+import { SearchResultsSection } from "@/app/(customer)/_components/search-results-section";
 
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ categoryId?: string }>;
+  searchParams: Promise<{
+    categoryId?: string;
+    q?: string;
+    sort?: string;
+    minPrice?: string;
+    maxPrice?: string;
+    radiusM?: string;
+  }>;
 }) {
-  const { categoryId } = await searchParams;
+  const { categoryId, q, sort, minPrice, maxPrice, radiusM } = await searchParams;
+  const isFiltered = Boolean(q || sort || minPrice || maxPrice || radiusM);
+
   const supabase = await createClient();
   const [categories, userId] = await Promise.all([
     listCategories(supabase),
@@ -59,25 +67,24 @@ export default async function HomePage({
         </div>
       </section>
 
-      <Suspense>
-        <FilterBar />
-      </Suspense>
-
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Khám phá theo loại combo</h2>
         <CategoryRail categories={categories} activeCategoryId={categoryId} />
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Combo gần bạn</h2>
+      {/* Search (site-search.tsx, header) or the filter icon (site-search-
+          filters.tsx, header) switches this from the tabbed browse view to
+          filtered search results — same URL-searchParams contract as
+          categoryId above, just read server-side here to pick the view. */}
+      {isFiltered ? (
+        <section className="space-y-3">
+          <Suspense>
+            <SearchResultsSection />
+          </Suspense>
+        </section>
+      ) : (
         <Suspense>
-          <NearbyCombosSection />
-        </Suspense>
-      </section>
-
-      {recommendedCategoryId && (
-        <Suspense>
-          <RecommendedSection categoryId={recommendedCategoryId} />
+          <ComboTabsSection recommendedCategoryId={recommendedCategoryId} />
         </Suspense>
       )}
     </div>
