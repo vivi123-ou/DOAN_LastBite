@@ -20,14 +20,13 @@ export default async function HomePage({
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-3">
           <span className="flex items-center gap-2 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
             <Leaf className="size-3.5" />
-            Net Zero — mỗi combo là một bước giảm lãng phí thực phẩm
+            Net Zero · Ăn ngon, giảm lãng phí
           </span>
           <h1 className="text-3xl font-bold sm:text-4xl">
-            Combo cuối ngày ngon, giá tốt — gần bạn ngay lúc này
+            Đồ ăn ngon cuối ngày, giá tốt hơn — ngay gần bạn
           </h1>
           <p className="text-muted-foreground">
-            LastBite hiển thị rõ nội dung và ảnh thật của từng combo, kèm hạn dùng tốt nhất
-            (Best Before) — không có &ldquo;túi mù&rdquo;.
+            Xem đúng món, đúng ảnh, đúng hạn dùng trước khi đặt. Không đoán mò, không rủi ro.
           </p>
         </div>
       </section>
