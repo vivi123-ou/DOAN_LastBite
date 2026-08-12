@@ -61,7 +61,10 @@ export default async function StoreDashboardPage() {
               Hồ sơ cửa hàng bị từ chối. Vui lòng liên hệ đội ngũ LastBite để biết thêm chi tiết.
             </p>
           )}
-          <Button render={<Link href="/dashboard/combos">Quản lý combo</Link>} />
+          <Button
+            nativeButton={false}
+            render={<Link href="/dashboard/combos">Quản lý combo</Link>}
+          />
         </CardContent>
       </Card>
     </div>

@@ -41,6 +41,7 @@ export default async function StoreCombosPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Combo của {store.name}</h1>
         <Button
+          nativeButton={false}
           render={
             <Link href="/dashboard/combos/new">
               <Plus className="mr-2 size-4" />
@@ -74,6 +75,7 @@ export default async function StoreCombosPage() {
                 <Button
                   variant="ghost"
                   size="sm"
+                  nativeButton={false}
                   render={<Link href={`/dashboard/combos/${combo.id}/edit`}>Chỉnh sửa</Link>}
                 />
                 <ComboStatusToggle comboId={combo.id} status={combo.status} />

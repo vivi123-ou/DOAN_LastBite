@@ -49,6 +49,7 @@ export async function SiteHeader() {
                 <Button
                   variant="ghost"
                   size="sm"
+                  nativeButton={false}
                   render={<Link href="/dashboard">Kênh cửa hàng</Link>}
                 />
               )}
@@ -60,8 +61,13 @@ export async function SiteHeader() {
             </>
           ) : (
             <>
-              <Button variant="ghost" size="sm" render={<Link href="/login">Đăng nhập</Link>} />
-              <Button size="sm" render={<Link href="/signup">Đăng ký</Link>} />
+              <Button
+                variant="ghost"
+                size="sm"
+                nativeButton={false}
+                render={<Link href="/login">Đăng nhập</Link>}
+              />
+              <Button size="sm" nativeButton={false} render={<Link href="/signup">Đăng ký</Link>} />
             </>
           )}
         </div>
