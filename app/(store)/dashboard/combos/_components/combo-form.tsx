@@ -34,6 +34,14 @@ function toDatetimeLocal(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Displays with Vietnamese thousands separators ("." — see toLocaleString(vi-VN)
+// usage elsewhere: combo-card.tsx, combo detail page) while state stays a plain
+// digit string, so the submitted value is unaffected by formatting.
+function formatThousands(digits: string): string {
+  if (!digits) return "";
+  return Number(digits).toLocaleString("vi-VN");
+}
+
 export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps) {
   const router = useRouter();
   const isEdit = Boolean(initialCombo);
@@ -159,12 +167,12 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
           <Label htmlFor="combo-price">Giá gốc (đ)</Label>
           <Input
             id="combo-price"
-            type="number"
-            min={1000}
-            step={1000}
+            type="text"
+            inputMode="numeric"
             required
-            value={originalPrice}
-            onChange={(e) => setOriginalPrice(e.target.value)}
+            placeholder="0"
+            value={formatThousands(originalPrice)}
+            onChange={(e) => setOriginalPrice(e.target.value.replace(/\D/g, ""))}
           />
         </div>
         <div className="space-y-2">
