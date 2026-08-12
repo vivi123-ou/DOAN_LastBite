@@ -61,7 +61,13 @@ export function ComboImageUploader({ storeId, value, onChange }: ComboImageUploa
       const path = `${storeId}/${crypto.randomUUID()}-${slugifyFilename(file.name)}`;
       const { error: uploadError } = await supabase.storage.from("combo-images").upload(path, file);
       if (uploadError) {
-        console.error("Combo image upload failed:", uploadError);
+        const { data: authData } = await supabase.auth.getUser();
+        console.error("Combo image upload failed:", {
+          uploadError,
+          path,
+          storeId,
+          authUserId: authData?.user?.id,
+        });
         setError("Tải ảnh lên thất bại, vui lòng thử lại.");
         continue;
       }
