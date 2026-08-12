@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Clock, MapPin, Package, Store as StoreIcon, Truck } from "lucide-react";
+import { Clock, MapPin, Package, Star, Store as StoreIcon, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById } from "@/lib/repositories/combo.repository";
+import { getComboRatingSummary, listPublicForCombo } from "@/lib/repositories/review.repository";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,19 @@ export default async function ComboDetailPage({
   const [combo, userId] = await Promise.all([getById(supabase, id), getCurrentUserId(supabase)]);
 
   if (!combo) notFound();
+
+  // Unlike most other "pending migration" spots in this app, a missing
+  // column just comes back undefined — a missing *table* fails the whole
+  // query, and this page is core purchasing flow (the only entry point
+  // into the cart). Swallowed here specifically so an unapplied
+  // 0015_combo_reviews.sql degrades to "no rating shown yet" instead of a
+  // hard 500 that would block buying anything sitewide — everywhere else
+  // in this app that surfaces the real error on purpose, this one page is
+  // the deliberate exception.
+  const [ratingSummary, reviews] = await Promise.all([
+    getComboRatingSummary(supabase, combo.id).catch(() => ({ averageRating: 0, reviewCount: 0 })),
+    listPublicForCombo(supabase, combo.id).catch(() => []),
+  ]);
 
   const discountPct = Math.round(
     (1 - combo.currentPrice / Math.max(combo.originalPrice, 1)) * 100
@@ -67,6 +81,13 @@ export default async function ComboDetailPage({
           <MapPin className="size-4" />
           {combo.storeName} · {combo.storeAddressLine}
         </p>
+        {ratingSummary.reviewCount > 0 && (
+          <p className="flex items-center gap-1 text-sm">
+            <Star className="size-4 fill-primary text-primary" />
+            <strong>{ratingSummary.averageRating.toFixed(1)}</strong>
+            <span className="text-muted-foreground">({ratingSummary.reviewCount} đánh giá)</span>
+          </p>
+        )}
       </div>
 
       <div className="flex items-baseline gap-3">
@@ -156,6 +177,33 @@ export default async function ComboDetailPage({
             pickupSupported: combo.pickupSupported,
           }}
         />
+      )}
+
+      {reviews.length > 0 && (
+        <div className="space-y-3 border-t pt-6">
+          <h2 className="font-semibold">Đánh giá từ khách hàng</h2>
+          <div className="space-y-3">
+            {reviews.map((review) => (
+              <div key={review.id} className="rounded-lg border p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: 5 }, (_, i) => (
+                      <Star
+                        key={i}
+                        className={`size-3.5 ${i < (review.rating ?? 0) ? "fill-primary text-primary" : "text-muted-foreground"}`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {review.customerName ?? "Khách hàng"} ·{" "}
+                    {new Date(review.createdAt).toLocaleDateString("vi-VN")}
+                  </span>
+                </div>
+                {review.comment && <p className="mt-1 text-muted-foreground">{review.comment}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

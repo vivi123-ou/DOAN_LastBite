@@ -3,9 +3,11 @@ import { toDataURL } from "qrcode";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById } from "@/lib/repositories/order.repository";
+import { listForOrder } from "@/lib/repositories/review.repository";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SimulatePaymentButton } from "@/app/(customer)/orders/[id]/_components/simulate-payment-button";
+import { ReviewForm } from "@/app/(customer)/orders/[id]/_components/review-form";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Chờ xác nhận",
@@ -30,6 +32,13 @@ export default async function OrderDetailPage({
   const order = await getById(supabase, id);
   if (!order || order.customerId !== userId) notFound();
 
+  // Same "missing table, not just a missing column" resilience exception
+  // as combos/[id]/page.tsx — this page's core job (order status, QR code)
+  // shouldn't 500 just because the review add-on can't load yet.
+  const reviews =
+    order.status === "completed" ? await listForOrder(supabase, order.id).catch(() => []) : [];
+  const reviewByOrderItem = new Map(reviews.map((r) => [r.orderItemId, r]));
+
   const isPaid = order.paymentStatus === "success";
   let qrDataUrl: string | null = null;
   if (isPaid && order.fulfillmentType === "pickup" && order.qrCodeToken) {
@@ -51,13 +60,23 @@ export default async function OrderDetailPage({
       </div>
 
       <Card>
-        <CardContent className="space-y-2 p-4">
+        <CardContent className="space-y-3 p-4">
           {order.items.map((item) => (
-            <div key={item.id} className="flex justify-between text-sm">
-              <span>
-                {item.comboName} x{item.quantity}
-              </span>
-              <span>{item.subtotal.toLocaleString("vi-VN")}đ</span>
+            <div key={item.id} className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>
+                  {item.comboName} x{item.quantity}
+                </span>
+                <span>{item.subtotal.toLocaleString("vi-VN")}đ</span>
+              </div>
+              {order.status === "completed" && (
+                <ReviewForm
+                  orderId={order.id}
+                  orderItemId={item.id}
+                  comboName={item.comboName}
+                  existingReview={reviewByOrderItem.get(item.id) ?? null}
+                />
+              )}
             </div>
           ))}
           <div className="flex justify-between border-t pt-2 font-semibold">

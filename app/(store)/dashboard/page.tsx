@@ -4,10 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
 import { getStoreMonthlyStats } from "@/lib/repositories/order.repository";
+import { getStoreStats } from "@/lib/repositories/review.repository";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Flag, Star } from "lucide-react";
 import { StoreRegistrationForm } from "@/app/(store)/dashboard/_components/store-registration-form";
+import type { ComboRatingSummary } from "@/lib/domain/review";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Đang chờ xác minh",
@@ -38,7 +41,13 @@ export default async function StoreDashboardPage() {
     );
   }
 
-  const stats = await getStoreMonthlyStats(supabase, store.id);
+  // Same "missing table, not just a missing column" resilience exception
+  // as combos/[id]/page.tsx — a store owner's whole dashboard overview
+  // shouldn't 500 just because the review analytics add-on can't load yet.
+  const [stats, reviewStats] = await Promise.all([
+    getStoreMonthlyStats(supabase, store.id),
+    getStoreStats(supabase, store.id).catch(() => ({ topRated: [], lowestRated: [], reportCount: 0 })),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10">
@@ -103,6 +112,65 @@ export default async function StoreDashboardPage() {
           </Card>
         </div>
       </div>
+
+      {(reviewStats.topRated.length > 0 || reviewStats.reportCount > 0) && (
+        <div>
+          <h2 className="mb-3 text-lg font-semibold">Đánh giá sản phẩm</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {reviewStats.topRated.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-1.5 text-sm">
+                    <Star className="size-4 fill-primary text-primary" />
+                    Đánh giá tốt nhất
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {reviewStats.topRated.map((c: ComboRatingSummary) => (
+                    <div key={c.comboId} className="flex items-center justify-between text-sm">
+                      <span className="truncate">{c.comboName}</span>
+                      <span className="shrink-0 font-medium text-primary">
+                        {c.averageRating.toFixed(1)} ★ ({c.reviewCount})
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+            {reviewStats.lowestRated.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-1.5 text-sm">
+                    <Star className="size-4 text-muted-foreground" />
+                    Cần cải thiện
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {reviewStats.lowestRated.map((c: ComboRatingSummary) => (
+                    <div key={c.comboId} className="flex items-center justify-between text-sm">
+                      <span className="truncate">{c.comboName}</span>
+                      <span className="shrink-0 font-medium text-muted-foreground">
+                        {c.averageRating.toFixed(1)} ★ ({c.reviewCount})
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+            {reviewStats.reportCount > 0 && (
+              <Card className="sm:col-span-2">
+                <CardContent className="flex items-center gap-3 p-4">
+                  <Flag className="size-5 text-destructive" />
+                  <p className="text-sm">
+                    <strong className="text-destructive">{reviewStats.reportCount}</strong> báo cáo
+                    vấn đề từ khách hàng — xem chi tiết ở lịch sử đơn hàng liên quan.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

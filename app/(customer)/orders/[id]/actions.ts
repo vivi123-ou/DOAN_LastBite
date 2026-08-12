@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById, markPaid } from "@/lib/repositories/order.repository";
+import { create as createReview } from "@/lib/repositories/review.repository";
+import { createReviewSchema } from "@/lib/validation/review.schema";
 
 // STAND-IN for the real VNPay/Momo IPN webhook handler (Phase 2 payment
 // gateway wiring, deferred — see .claude/plans and CLAUDE.md §4). When the
@@ -25,4 +27,20 @@ export async function simulatePaymentAction(orderId: string): Promise<void> {
   const admin = createAdminClient();
   await markPaid(admin, orderId, "vnpay");
   revalidatePath(`/orders/${orderId}`);
+}
+
+// Regular authenticated client — combo_reviews_insert_own RLS already
+// scopes this to the caller's own submission (same-actor write); eligibility
+// (order ownership + status === 'completed') is re-checked inside
+// review.repository.ts's create(), not trusted from the form.
+export async function submitReviewAction(input: unknown) {
+  const parsed = createReviewSchema.parse(input);
+
+  const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) throw new Error("Bạn cần đăng nhập trước.");
+
+  await createReview(supabase, userId, parsed);
+  revalidatePath(`/orders/${parsed.orderId}`);
+  revalidatePath("/account/reviews");
 }

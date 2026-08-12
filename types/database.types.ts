@@ -307,6 +307,29 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["payments"]["Row"]>;
         Relationships: [];
       };
+      combo_reviews: {
+        Row: {
+          id: string;
+          order_id: string;
+          order_item_id: string;
+          combo_id: string;
+          customer_id: string;
+          store_id: string;
+          kind: "review" | "report";
+          rating: number | null;
+          comment: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["combo_reviews"]["Row"]> & {
+          order_id: string;
+          order_item_id: string;
+          combo_id: string;
+          customer_id: string;
+          store_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["combo_reviews"]["Row"]>;
+        Relationships: [];
+      };
       bulk_discount_tiers: {
         Row: {
           id: string;
