@@ -77,6 +77,7 @@ export function StoreRegistrationForm() {
             addressLine={addressLine}
             onAddressLineChange={setAddressLine}
             coords={coords}
+            onCoordsChange={setCoords}
             onLocate={handleLocate}
             locating={locating}
           />

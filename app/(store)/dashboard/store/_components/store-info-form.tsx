@@ -104,6 +104,7 @@ export function StoreInfoForm({ store }: { store: Store }) {
           addressLine={addressLine}
           onAddressLineChange={setAddressLine}
           coords={coords}
+          onCoordsChange={setCoords}
           onLocate={handleLocate}
           locating={locating}
         />
