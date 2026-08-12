@@ -8,6 +8,8 @@ import type {
   StoreComboSummary,
 } from "@/lib/domain/combo";
 import type { BuiltCombo } from "@/lib/factories/combo.builder";
+import { resolvePricingStrategy } from "@/lib/pricing/strategies/pricing-strategy.factory";
+import { computeStockBasedDecayPrice } from "@/lib/pricing/strategies/stock-based-decay.strategy";
 
 type ComboRow = Database["public"]["Tables"]["combos"]["Row"];
 
@@ -28,7 +30,10 @@ export async function listActiveByStorePaginated(
 ): Promise<{ combos: StoreComboSummary[]; hasMore: boolean }> {
   const { data: rows, error, count } = await client
     .from("combos")
-    .select("id, name, current_price, original_price, best_before", { count: "exact" })
+    .select(
+      "id, name, current_price, original_price, best_before, initial_stock, remaining_stock, created_at",
+      { count: "exact" }
+    )
     .eq("store_id", storeId)
     .eq("status", "active")
     .gt("best_before", new Date().toISOString())
@@ -54,7 +59,18 @@ export async function listActiveByStorePaginated(
     combos: rows.map((r) => ({
       comboId: r.id,
       name: r.name,
-      currentPrice: r.current_price,
+      // See lib/pricing/strategies/stock-based-decay.strategy.ts — every
+      // combo runs pricing_strategy = 'stock_based_decay' in practice, so
+      // this reads straight from the shared formula rather than round-
+      // tripping through resolvePricingStrategy() for a plain (non-Combo)
+      // row shape.
+      currentPrice: computeStockBasedDecayPrice({
+        originalPrice: r.original_price,
+        initialStock: r.initial_stock,
+        remainingStock: r.remaining_stock,
+        createdAt: r.created_at,
+        bestBefore: r.best_before,
+      }),
       originalPrice: r.original_price,
       bestBefore: r.best_before,
       imageUrl: firstImageByCombo.get(r.id) ?? null,
@@ -159,15 +175,29 @@ export async function getSnapshotsByIds(
 
   const { data, error } = await client
     .from("combos")
-    .select("id, store_id, name, current_price, status, best_before, remaining_stock, delivery_supported, pickup_supported")
+    .select(
+      "id, store_id, name, current_price, original_price, status, best_before, remaining_stock, initial_stock, created_at, delivery_supported, pickup_supported"
+    )
     .in("id", ids);
   if (error) throw error;
 
+  // This is the checkout-charging path (order.builder.ts re-validates every
+  // cart line against a fresh snapshot) — recomputing the dynamic price here,
+  // at submit time, is exactly what makes it impossible to "wait out the
+  // clock" for a price seen earlier in the browsing session. See
+  // stock-based-decay.strategy.ts for why this calls the shared formula
+  // directly rather than going through resolvePricingStrategy().
   return data.map((row) => ({
     id: row.id,
     storeId: row.store_id,
     name: row.name,
-    currentPrice: row.current_price,
+    currentPrice: computeStockBasedDecayPrice({
+      originalPrice: row.original_price,
+      initialStock: row.initial_stock,
+      remainingStock: row.remaining_stock,
+      createdAt: row.created_at,
+      bestBefore: row.best_before,
+    }),
     status: row.status,
     bestBefore: row.best_before,
     remainingStock: row.remaining_stock,
@@ -247,7 +277,7 @@ async function hydrate(
   if (itemsError) throw itemsError;
   if (imagesError) throw imagesError;
 
-  return {
+  const combo: Combo = {
     id: row.id,
     storeId: row.store_id,
     storeOwnerId: store.ownerId,
@@ -257,10 +287,14 @@ async function hydrate(
     name: row.name,
     description: row.description,
     originalPrice: row.original_price,
+    // Placeholder — FixedPriceStrategy would just echo this stored column
+    // straight back, StockBasedDecayStrategy (the live default) ignores it
+    // and recomputes fresh below. See pricing-strategy.factory.ts.
     currentPrice: row.current_price,
     initialStock: row.initial_stock,
     remainingStock: row.remaining_stock,
     bestBefore: row.best_before,
+    createdAt: row.created_at,
     deliverySupported: row.delivery_supported,
     pickupSupported: row.pickup_supported,
     status: row.status,
@@ -272,6 +306,18 @@ async function hydrate(
     })),
     images: images.map((i) => i.url),
   };
+  // This is the one repository path that builds a full domain Combo, so
+  // it's also the one path that goes through the real polymorphic
+  // resolvePricingStrategy() dispatch documented in
+  // .claude/rules/stack-and-conventions.md, rather than calling the shared
+  // decay formula directly (see the lighter read shapes elsewhere in this
+  // file, which skip the dispatch since every combo is 'stock_based_decay'
+  // in practice).
+  combo.currentPrice = resolvePricingStrategy(row.pricing_strategy).calculatePrice(
+    combo,
+    new Date()
+  );
+  return combo;
 }
 
 // Combo creation is a multi-table write (combo + items + images) built by

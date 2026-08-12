@@ -42,7 +42,13 @@ export async function SiteHeader() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {role !== "store_owner" && <MiniCart />}
+          {/* Shown regardless of role — a store_owner account can still
+              browse/buy from *other* stores as a customer (see the
+              isOwnStore gate on combos/[id]/page.tsx, which only blocks
+              buying from your own store, not shopping generally), so hiding
+              the cart entirely for that role was hiding a feature that
+              genuinely works. */}
+          <MiniCart />
           {userId && profile ? (
             <>
               <NotificationBell userId={userId} />

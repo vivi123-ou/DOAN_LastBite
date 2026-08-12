@@ -20,6 +20,10 @@ export interface Combo {
   initialStock: number;
   remainingStock: number;
   bestBefore: string;
+  // Needed by StockBasedDecayStrategy to compute how far through the
+  // combo's own listed_at→best_before window `now` is — see
+  // lib/pricing/strategies/stock-based-decay.strategy.ts.
+  createdAt: string;
   deliverySupported: boolean;
   pickupSupported: boolean;
   status: ComboStatus;

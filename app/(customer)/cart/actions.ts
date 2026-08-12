@@ -57,5 +57,17 @@ export async function createOrderAction(input: unknown): Promise<{ orderId: stri
   );
 
   const order = await orderRepository.create(admin, built);
+
+  // Net Zero points fully covering the order total is treated as an
+  // immediate, automatic "payment" — there's nothing left to actually pay a
+  // gateway for, so there's no reason to make the customer click through a
+  // symbolic VNPay/Momo screen for 0đ. Skips straight to the paid state
+  // (and, for pickup orders, the QR code) the instant they land on
+  // /orders/[id]. Any positive remaining total still goes through the real
+  // (simulated) payment-method step on that page.
+  if (order.totalAmount === 0) {
+    await orderRepository.markPaid(admin, order.id, "vnpay");
+  }
+
   return { orderId: order.id };
 }

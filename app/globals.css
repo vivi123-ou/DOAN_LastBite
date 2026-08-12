@@ -122,9 +122,14 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground overflow-x-hidden;
   }
   html {
-    @apply font-sans;
+    /* Belt-and-suspenders against sideways page scroll — a mispositioned
+       fixed-position overlay (mini-cart's earlier flyout panel, before it
+       was switched to an anchored dropdown) was able to widen the page and
+       let it drag sideways. The dropdown rewrite removes the actual cause,
+       this just makes sure nothing else can reintroduce the same symptom. */
+    @apply overflow-x-hidden font-sans;
   }
 }

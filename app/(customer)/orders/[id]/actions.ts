@@ -13,7 +13,13 @@ import { createReviewSchema } from "@/lib/validation/review.schema";
 // real gateway lands, this action goes away and markPaid() gets called from
 // a webhook route instead — nothing else in the order flow changes, since
 // this already runs through the same admin-client, payments-pattern path.
-export async function simulatePaymentAction(orderId: string): Promise<void> {
+// `method` is whichever symbolic gateway tile the customer picked in
+// PaymentMethodSelector — recorded on the order exactly like a real gateway
+// callback would report which provider was used.
+export async function simulatePaymentAction(
+  orderId: string,
+  method: "vnpay" | "momo"
+): Promise<void> {
   const supabase = await createClient();
   const userId = await getCurrentUserId(supabase);
   if (!userId) throw new Error("Bạn cần đăng nhập trước.");
@@ -25,7 +31,7 @@ export async function simulatePaymentAction(orderId: string): Promise<void> {
   if (order.paymentStatus === "success") return;
 
   const admin = createAdminClient();
-  await markPaid(admin, orderId, "vnpay");
+  await markPaid(admin, orderId, method);
   revalidatePath(`/orders/${orderId}`);
 }
 
