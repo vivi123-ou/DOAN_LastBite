@@ -39,6 +39,20 @@ export async function getLocationsByIds(
   return locations;
 }
 
+// Used as a defense-in-depth check at checkout (a store can't buy from
+// itself — see order.builder.ts / cart/actions.ts) — the primary gate is
+// hiding "Thêm vào giỏ hàng" on the combo detail page for the store's own
+// combos, this just guards the same rule server-side in case a cart built
+// before that page-level check slips through.
+export async function getOwnerIdById(
+  client: SupabaseClient<Database>,
+  storeId: string
+): Promise<string | null> {
+  const { data, error } = await client.from("stores").select("owner_id").eq("id", storeId).maybeSingle();
+  if (error) throw error;
+  return data?.owner_id ?? null;
+}
+
 export async function getStoreByOwnerId(
   client: SupabaseClient<Database>,
   ownerId: string

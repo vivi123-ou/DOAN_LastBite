@@ -47,13 +47,21 @@ async function buildComboForCurrentStore(input: unknown) {
 
 export async function createComboAction(input: unknown) {
   const { supabase, store, built } = await buildComboForCurrentStore(input);
-  await comboRepository.create(supabase, built, store.name, store.addressLine);
+  await comboRepository.create(supabase, built, {
+    name: store.name,
+    addressLine: store.addressLine,
+    ownerId: store.ownerId,
+  });
   revalidatePath("/dashboard/combos");
 }
 
 export async function updateComboAction(comboId: string, input: unknown) {
   const { supabase, store, built } = await buildComboForCurrentStore(input);
-  await comboRepository.update(supabase, comboId, built, store.name, store.addressLine);
+  await comboRepository.update(supabase, comboId, built, {
+    name: store.name,
+    addressLine: store.addressLine,
+    ownerId: store.ownerId,
+  });
   revalidatePath("/dashboard/combos");
   revalidatePath(`/dashboard/combos/${comboId}/edit`);
 }

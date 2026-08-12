@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Clock, MapPin, Package, Truck } from "lucide-react";
+import { Clock, MapPin, Package, Store as StoreIcon, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById } from "@/lib/repositories/combo.repository";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { AddToCartButton } from "@/components/cart/add-to-cart-button";
 
 const STATUS_MESSAGE: Record<string, string> = {
@@ -20,14 +23,19 @@ export default async function ComboDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
-  const combo = await getById(supabase, id);
+  const [combo, userId] = await Promise.all([getById(supabase, id), getCurrentUserId(supabase)]);
 
   if (!combo) notFound();
 
   const discountPct = Math.round(
     (1 - combo.currentPrice / Math.max(combo.originalPrice, 1)) * 100
   );
-  const isBuyable = combo.status === "active";
+  // A store can't buy from itself — see the "kênh bán / kênh mua" decision
+  // in CLAUDE.md §7. This is the one entry point into the cart, so gating
+  // it here is sufficient; createOrderAction also rejects it server-side
+  // as defense-in-depth in case a stale cart slips through.
+  const isOwnStore = userId !== null && userId === combo.storeOwnerId;
+  const isBuyable = combo.status === "active" && !isOwnStore;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
@@ -111,7 +119,21 @@ export default async function ComboDetailPage({
         {combo.description && <p className="text-sm text-muted-foreground">{combo.description}</p>}
       </div>
 
-      {!isBuyable && (
+      {isOwnStore && combo.status === "active" && (
+        <div className="flex items-center justify-between gap-4 rounded-md border border-dashed p-4 text-sm">
+          <span className="flex items-center gap-2 text-muted-foreground">
+            <StoreIcon className="size-4" />
+            Đây là combo của cửa hàng bạn — không thể tự mua.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={`/dashboard/combos/${combo.id}/edit`}>Chỉnh sửa</Link>}
+          />
+        </div>
+      )}
+      {!isBuyable && !isOwnStore && (
         <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
           {STATUS_MESSAGE[combo.status] ?? "Combo này hiện không thể mua."}
         </p>

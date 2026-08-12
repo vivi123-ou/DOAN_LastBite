@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { checkoutSchema } from "@/lib/validation/order.schema";
 import { getSnapshotsByIds } from "@/lib/repositories/combo.repository";
+import { getOwnerIdById } from "@/lib/repositories/store.repository";
 import { OrderBuilder } from "@/lib/factories/order.builder";
 import * as orderRepository from "@/lib/repositories/order.repository";
 
@@ -21,6 +22,16 @@ export async function createOrderAction(input: unknown): Promise<{ orderId: stri
   if (!userId) throw new Error("Bạn cần đăng nhập trước khi đặt hàng.");
 
   const admin = createAdminClient();
+
+  // Defense-in-depth: a store can't buy from itself — the primary gate is
+  // combos/[id]/page.tsx not showing "Thêm vào giỏ hàng" for the viewer's
+  // own store, this catches a cart built before that check (e.g. added,
+  // then the combo's store later got linked to this account).
+  const storeOwnerId = await getOwnerIdById(admin, parsed.storeId);
+  if (storeOwnerId === userId) {
+    throw new Error("Bạn không thể tự đặt hàng từ cửa hàng của chính mình.");
+  }
+
   const comboIds = parsed.items.map((i) => i.comboId);
   const snapshots = await getSnapshotsByIds(admin, comboIds);
 

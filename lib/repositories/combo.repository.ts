@@ -65,6 +65,12 @@ export async function getSnapshotsByIds(
   }));
 }
 
+interface StoreRef {
+  name: string;
+  addressLine: string;
+  ownerId: string;
+}
+
 export async function listByStore(
   client: SupabaseClient<Database>,
   storeId: string
@@ -79,12 +85,13 @@ export async function listByStore(
 
   const { data: store, error: storeError } = await client
     .from("stores")
-    .select("name, address_line")
+    .select("name, address_line, owner_id")
     .eq("id", storeId)
     .single();
   if (storeError) throw storeError;
 
-  return Promise.all(comboRows.map((row) => hydrate(client, row, store.name, store.address_line)));
+  const storeRef: StoreRef = { name: store.name, addressLine: store.address_line, ownerId: store.owner_id };
+  return Promise.all(comboRows.map((row) => hydrate(client, row, storeRef)));
 }
 
 export async function getById(
@@ -97,19 +104,22 @@ export async function getById(
 
   const { data: store, error: storeError } = await client
     .from("stores")
-    .select("name, address_line")
+    .select("name, address_line, owner_id")
     .eq("id", row.store_id)
     .single();
   if (storeError) throw storeError;
 
-  return hydrate(client, row, store.name, store.address_line);
+  return hydrate(client, row, {
+    name: store.name,
+    addressLine: store.address_line,
+    ownerId: store.owner_id,
+  });
 }
 
 async function hydrate(
   client: SupabaseClient<Database>,
   row: ComboRow,
-  storeName: string,
-  storeAddressLine: string
+  store: StoreRef
 ): Promise<Combo> {
   const [{ data: items, error: itemsError }, { data: images, error: imagesError }] =
     await Promise.all([
@@ -129,8 +139,9 @@ async function hydrate(
   return {
     id: row.id,
     storeId: row.store_id,
-    storeName,
-    storeAddressLine,
+    storeOwnerId: store.ownerId,
+    storeName: store.name,
+    storeAddressLine: store.addressLine,
     categoryId: row.category_id,
     name: row.name,
     description: row.description,
@@ -159,18 +170,17 @@ async function hydrate(
 // a "live" combo with missing contents. A true multi-statement transaction
 // would need a Postgres function; not worth it for a solo phase-1 scope.
 //
-// storeName/storeAddressLine are passed in rather than re-queried here —
-// callers (dashboard/combos/actions.ts) already have the Store from
-// resolving the current user's store, so re-fetching it after every write
-// was a wasted round trip. Items and images inserts are independent of each
-// other and run in parallel for the same reason (see combo-detail perf
-// investigation — Supabase's per-request latency adds up fast when calls
-// that don't depend on each other are still awaited sequentially).
+// `store` is passed in rather than re-queried here — callers
+// (dashboard/combos/actions.ts) already have the Store from resolving the
+// current user's store, so re-fetching it after every write was a wasted
+// round trip. Items and images inserts are independent of each other and
+// run in parallel for the same reason (see combo-detail perf investigation
+// — Supabase's per-request latency adds up fast when calls that don't
+// depend on each other are still awaited sequentially).
 export async function create(
   client: SupabaseClient<Database>,
   built: BuiltCombo,
-  storeName: string,
-  storeAddressLine: string
+  store: StoreRef
 ): Promise<Combo> {
   const { data: combo, error } = await client
     .from("combos")
@@ -200,15 +210,14 @@ export async function create(
     .single();
   if (activateError) throw activateError;
 
-  return hydrate(client, activated, storeName, storeAddressLine);
+  return hydrate(client, activated, store);
 }
 
 export async function update(
   client: SupabaseClient<Database>,
   id: string,
   built: BuiltCombo,
-  storeName: string,
-  storeAddressLine: string
+  store: StoreRef
 ): Promise<Combo> {
   const { data: combo, error } = await client
     .from("combos")
@@ -240,7 +249,7 @@ export async function update(
   if (itemsResult.error) throw itemsResult.error;
   if (imagesResult.error) throw imagesResult.error;
 
-  return hydrate(client, combo, storeName, storeAddressLine);
+  return hydrate(client, combo, store);
 }
 
 export async function updateStatus(

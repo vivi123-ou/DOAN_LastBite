@@ -9,6 +9,7 @@ export interface ComboItemInput {
 export interface Combo {
   id: string;
   storeId: string;
+  storeOwnerId: string;
   storeName: string;
   storeAddressLine: string;
   categoryId: string;
