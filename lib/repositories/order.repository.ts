@@ -272,3 +272,49 @@ export async function getStoreMonthlyStats(
     revenue: completed.reduce((sum, o) => sum + o.total_amount, 0),
   };
 }
+
+// Feeds the homepage "Có thể bạn thích" section — categories the customer
+// has actually ordered from before, ranked by frequency. Plain JS
+// aggregation over a customer's own order history (expected to stay small)
+// rather than a dedicated SQL aggregate RPC — not worth a new migration for
+// this scope. See lib/domain/category.ts for what a category id maps to.
+export async function getTopPurchasedCategoryIds(
+  client: SupabaseClient<Database>,
+  customerId: string,
+  limit = 2
+): Promise<string[]> {
+  const { data: orders, error: ordersError } = await client
+    .from("orders")
+    .select("id")
+    .eq("customer_id", customerId);
+  if (ordersError) throw ordersError;
+  if (orders.length === 0) return [];
+
+  const orderIds = orders.map((o) => o.id);
+  const { data: items, error: itemsError } = await client
+    .from("order_items")
+    .select("combo_id")
+    .in("order_id", orderIds);
+  if (itemsError) throw itemsError;
+  if (items.length === 0) return [];
+
+  const comboIds = [...new Set(items.map((i) => i.combo_id))];
+  const { data: combos, error: combosError } = await client
+    .from("combos")
+    .select("id, category_id")
+    .in("id", comboIds);
+  if (combosError) throw combosError;
+
+  const categoryIdByCombo = new Map(combos.map((c) => [c.id, c.category_id]));
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const categoryId = categoryIdByCombo.get(item.combo_id);
+    if (!categoryId) continue;
+    counts.set(categoryId, (counts.get(categoryId) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([categoryId]) => categoryId);
+}

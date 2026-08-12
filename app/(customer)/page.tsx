@@ -1,9 +1,13 @@
 import { Suspense } from "react";
 import { Leaf, Sprout, TreePine } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserId } from "@/lib/supabase/auth";
 import { listCategories } from "@/lib/repositories/category.repository";
+import { getTopPurchasedCategoryIds } from "@/lib/repositories/order.repository";
 import { CategoryRail } from "@/app/(customer)/_components/category-rail";
+import { SearchBar } from "@/app/(customer)/_components/search-bar";
 import { NearbyCombosSection } from "@/app/(customer)/_components/nearby-combos-section";
+import { RecommendedSection } from "@/app/(customer)/_components/recommended-section";
 
 export default async function HomePage({
   searchParams,
@@ -12,7 +16,12 @@ export default async function HomePage({
 }) {
   const { categoryId } = await searchParams;
   const supabase = await createClient();
-  const categories = await listCategories(supabase);
+  const [categories, userId] = await Promise.all([
+    listCategories(supabase),
+    getCurrentUserId(supabase),
+  ]);
+  const topCategoryIds = userId ? await getTopPurchasedCategoryIds(supabase, userId, 1) : [];
+  const recommendedCategoryId = topCategoryIds[0];
 
   return (
     <div className="mx-auto max-w-6xl space-y-10 px-4 py-8">
@@ -50,6 +59,10 @@ export default async function HomePage({
         </div>
       </section>
 
+      <Suspense>
+        <SearchBar />
+      </Suspense>
+
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Khám phá theo loại combo</h2>
         <CategoryRail categories={categories} activeCategoryId={categoryId} />
@@ -61,6 +74,12 @@ export default async function HomePage({
           <NearbyCombosSection />
         </Suspense>
       </section>
+
+      {recommendedCategoryId && (
+        <Suspense>
+          <RecommendedSection categoryId={recommendedCategoryId} />
+        </Suspense>
+      )}
     </div>
   );
 }

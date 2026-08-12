@@ -384,6 +384,30 @@ export interface Database {
           image_url: string | null;
         }[];
       };
+      search_combos: {
+        Args: {
+          in_lat: number;
+          in_lng: number;
+          in_query?: string | null;
+          radius_m?: number;
+          max_results?: number;
+          in_category_id?: string | null;
+          min_price?: number | null;
+          max_price?: number | null;
+          sort_by?: string;
+        };
+        Returns: {
+          combo_id: string;
+          name: string;
+          current_price: number;
+          original_price: number;
+          best_before: string;
+          store_id: string;
+          store_name: string;
+          distance_m: number;
+          image_url: string | null;
+        }[];
+      };
     };
     Enums: Record<string, never>;
   };

@@ -38,6 +38,54 @@ export async function listNearby(
   }));
 }
 
+export interface SearchComboOptions {
+  query?: string;
+  radiusM?: number;
+  maxResults?: number;
+  categoryId?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  sortBy?: "relevance" | "price_asc" | "price_desc";
+}
+
+// Backed by search_combos() (0008_search_combos.sql) — a separate RPC from
+// nearby_combos() on purpose, see that migration's header comment: sorting
+// by price/relevance instead of pure KNN distance needs a different ORDER
+// BY shape than what keeps nearby_combos' index-assisted ordering working.
+// Text search still goes through the same trgm-indexed expression as the
+// rest of the app (idx_combos_name_trgm / idx_stores_name_trgm).
+export async function search(
+  client: SupabaseClient<Database>,
+  lat: number,
+  lng: number,
+  options: SearchComboOptions = {}
+): Promise<NearbyCombo[]> {
+  const { data, error } = await client.rpc("search_combos", {
+    in_lat: lat,
+    in_lng: lng,
+    in_query: options.query ?? null,
+    radius_m: options.radiusM ?? 5000,
+    max_results: options.maxResults ?? 30,
+    in_category_id: options.categoryId ?? null,
+    min_price: options.minPrice ?? null,
+    max_price: options.maxPrice ?? null,
+    sort_by: options.sortBy ?? "relevance",
+  });
+  if (error) throw error;
+
+  return data.map((row) => ({
+    comboId: row.combo_id,
+    name: row.name,
+    currentPrice: row.current_price,
+    originalPrice: row.original_price,
+    bestBefore: row.best_before,
+    storeId: row.store_id,
+    storeName: row.store_name,
+    distanceM: row.distance_m,
+    imageUrl: row.image_url,
+  }));
+}
+
 // Used at checkout to re-validate cart items against live data — see
 // order.builder.ts. Deliberately skips the items/images joins hydrate() does
 // since order validation only needs price/stock/status.
