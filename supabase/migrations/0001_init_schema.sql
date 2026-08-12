@@ -11,8 +11,15 @@ create extension if not exists unaccent;
 
 -- unaccent() is STABLE, not IMMUTABLE, so it can't be used directly in an index
 -- expression. Wrap it in an IMMUTABLE function for indexing store/combo names.
+-- SET search_path pins schema resolution (unaccent() may live in "extensions"
+-- rather than "public" depending on the project) and, as a side effect, opts
+-- this function out of inlining into callers — sidestepping a Postgres
+-- overload-resolution quirk that broke `unaccent('unaccent', text)` when
+-- inlined into a CREATE INDEX expression.
 create or replace function f_unaccent(text) returns text
-language sql immutable parallel safe as $$
+language sql immutable parallel safe
+set search_path = public, extensions
+as $$
   select unaccent($1)
 $$;
 
