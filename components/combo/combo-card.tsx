@@ -26,15 +26,22 @@ export function ComboCard({ combo }: { combo: NearbyCombo }) {
   return (
     <Link href={`/combos/${combo.comboId}`}>
       <Card className="h-full gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md">
-        <div className="relative aspect-square w-full bg-muted">
+        <div className="relative aspect-square w-full overflow-hidden bg-muted">
           {combo.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL
-            <img src={combo.imageUrl} alt={combo.name} className="size-full object-cover" />
+            <img
+              src={combo.imageUrl}
+              alt={combo.name}
+              className="size-full object-cover object-center"
+            />
           ) : (
             <div className="flex size-full items-center justify-center text-muted-foreground">
               <ImageOff className="size-8" />
             </div>
           )}
+          {/* Soft fade into the card's own background instead of a hard cut
+              from photo to text. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card to-transparent" />
           {discountPct > 0 && (
             <Badge className="absolute left-2 top-2 shadow-sm">-{discountPct}%</Badge>
           )}
