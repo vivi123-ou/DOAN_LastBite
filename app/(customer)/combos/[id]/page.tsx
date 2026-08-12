@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getById } from "@/lib/repositories/combo.repository";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { AddToCartButton } from "@/components/cart/add-to-cart-button";
 
 const STATUS_MESSAGE: Record<string, string> = {
   locked: "Combo này đã quá hạn Best Before và không còn được bán.",
@@ -115,10 +116,24 @@ export default async function ComboDetailPage({
           {STATUS_MESSAGE[combo.status] ?? "Combo này hiện không thể mua."}
         </p>
       )}
-      {isBuyable && (
+      {isBuyable && combo.remainingStock <= 0 && (
         <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-          Giỏ hàng và thanh toán online sẽ có ở giai đoạn tiếp theo của LastBite.
+          Combo này đã hết hàng.
         </p>
+      )}
+      {isBuyable && combo.remainingStock > 0 && (
+        <AddToCartButton
+          item={{
+            comboId: combo.id,
+            storeId: combo.storeId,
+            storeName: combo.storeName,
+            name: combo.name,
+            unitPrice: combo.currentPrice,
+            imageUrl: combo.images[0] ?? null,
+            deliverySupported: combo.deliverySupported,
+            pickupSupported: combo.pickupSupported,
+          }}
+        />
       )}
     </div>
   );

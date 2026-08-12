@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Leaf, MapPin } from "lucide-react";
+import { Leaf, MapPin, Receipt } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+import { CartBadge } from "@/components/layout/cart-badge";
 import { signOut } from "@/app/(auth)/actions";
 
 export async function SiteHeader() {
@@ -35,14 +36,22 @@ export async function SiteHeader() {
             <MapPin className="size-4" />
             Bản đồ
           </Link>
-          {role === "store_owner" && (
+          {role === "store_owner" ? (
             <Link href="/dashboard" className="hover:text-primary">
               Cửa hàng của tôi
             </Link>
+          ) : (
+            userId && (
+              <Link href="/orders" className="flex items-center gap-1 hover:text-primary">
+                <Receipt className="size-4" />
+                Đơn hàng của tôi
+              </Link>
+            )
           )}
         </nav>
 
         <div className="flex items-center gap-2">
+          {role !== "store_owner" && <CartBadge />}
           {userId ? (
             <>
               {role !== "store_owner" && (

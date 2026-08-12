@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
-import type { Combo, ComboStatus, NearbyCombo } from "@/lib/domain/combo";
+import type { Combo, ComboSnapshot, ComboStatus, NearbyCombo } from "@/lib/domain/combo";
 import type { BuiltCombo } from "@/lib/factories/combo.builder";
 
 type ComboRow = Database["public"]["Tables"]["combos"]["Row"];
@@ -34,6 +34,34 @@ export async function listNearby(
     storeId: row.store_id,
     storeName: row.store_name,
     distanceM: row.distance_m,
+  }));
+}
+
+// Used at checkout to re-validate cart items against live data — see
+// order.builder.ts. Deliberately skips the items/images joins hydrate() does
+// since order validation only needs price/stock/status.
+export async function getSnapshotsByIds(
+  client: SupabaseClient<Database>,
+  ids: string[]
+): Promise<ComboSnapshot[]> {
+  if (ids.length === 0) return [];
+
+  const { data, error } = await client
+    .from("combos")
+    .select("id, store_id, name, current_price, status, best_before, remaining_stock, delivery_supported, pickup_supported")
+    .in("id", ids);
+  if (error) throw error;
+
+  return data.map((row) => ({
+    id: row.id,
+    storeId: row.store_id,
+    name: row.name,
+    currentPrice: row.current_price,
+    status: row.status,
+    bestBefore: row.best_before,
+    remainingStock: row.remaining_stock,
+    deliverySupported: row.delivery_supported,
+    pickupSupported: row.pickup_supported,
   }));
 }
 

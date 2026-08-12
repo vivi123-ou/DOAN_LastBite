@@ -1,0 +1,42 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentUserId } from "@/lib/supabase/auth";
+import { checkoutSchema } from "@/lib/validation/order.schema";
+import { getSnapshotsByIds } from "@/lib/repositories/combo.repository";
+import { OrderBuilder } from "@/lib/factories/order.builder";
+import * as orderRepository from "@/lib/repositories/order.repository";
+
+// Order creation is a cross-actor write (checkout modifies the store's
+// combo stock) plus money-handling fields — runs entirely on the
+// service-role client, per the "payments pattern" in
+// .claude/rules/database-and-schema.md. The regular client is only used to
+// resolve who's currently signed in.
+export async function createOrderAction(input: unknown): Promise<{ orderId: string }> {
+  const parsed = checkoutSchema.parse(input);
+
+  const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) throw new Error("Bạn cần đăng nhập trước khi đặt hàng.");
+
+  const admin = createAdminClient();
+  const comboIds = parsed.items.map((i) => i.comboId);
+  const snapshots = await getSnapshotsByIds(admin, comboIds);
+
+  const built = OrderBuilder.build(
+    {
+      customerId: userId,
+      storeId: parsed.storeId,
+      fulfillmentType: parsed.fulfillmentType,
+      deliveryAddressLine: parsed.deliveryAddressLine,
+      deliveryLat: parsed.deliveryLat,
+      deliveryLng: parsed.deliveryLng,
+      items: parsed.items,
+    },
+    snapshots
+  );
+
+  const order = await orderRepository.create(admin, built);
+  return { orderId: order.id };
+}

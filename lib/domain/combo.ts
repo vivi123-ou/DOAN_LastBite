@@ -26,6 +26,21 @@ export interface Combo {
   images: string[];
 }
 
+// Lightweight read used for order validation/pricing at checkout — the full
+// Combo (with items/images) is unnecessary overhead there. Never trust a
+// client-supplied price/stock number; always re-fetch this at submit time.
+export interface ComboSnapshot {
+  id: string;
+  storeId: string;
+  name: string;
+  currentPrice: number;
+  status: ComboStatus;
+  bestBefore: string;
+  remainingStock: number;
+  deliverySupported: boolean;
+  pickupSupported: boolean;
+}
+
 export interface NearbyCombo {
   comboId: string;
   name: string;

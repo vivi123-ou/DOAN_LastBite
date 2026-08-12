@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
+import { getStoreMonthlyStats } from "@/lib/repositories/order.repository";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,8 @@ export default async function StoreDashboardPage() {
     );
   }
 
+  const stats = await getStoreMonthlyStats(supabase, store.id);
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10">
       <Card>
@@ -61,12 +64,45 @@ export default async function StoreDashboardPage() {
               Hồ sơ cửa hàng bị từ chối. Vui lòng liên hệ đội ngũ LastBite để biết thêm chi tiết.
             </p>
           )}
-          <Button
-            nativeButton={false}
-            render={<Link href="/dashboard/combos">Quản lý combo</Link>}
-          />
+          <div className="flex gap-2">
+            <Button
+              nativeButton={false}
+              render={<Link href="/dashboard/combos">Quản lý combo</Link>}
+            />
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href="/dashboard/orders">Đơn hàng đến</Link>}
+            />
+          </div>
         </CardContent>
       </Card>
+
+      <div>
+        <h2 className="mb-3 text-lg font-semibold">Thống kê tháng này</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-2xl font-bold">{stats.orderCount}</p>
+              <p className="text-xs text-muted-foreground">Đơn hàng</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-2xl font-bold">{stats.completedOrderCount}</p>
+              <p className="text-xs text-muted-foreground">Đã hoàn tất</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-2xl font-bold text-primary">
+                {stats.revenue.toLocaleString("vi-VN")}đ
+              </p>
+              <p className="text-xs text-muted-foreground">Doanh thu</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/layout/site-header";
+import { CartProvider } from "@/lib/cart/cart-context";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,9 +32,14 @@ export default function RootLayout({
         className="min-h-full flex flex-col bg-background text-foreground"
         suppressHydrationWarning
       >
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
-        <Toaster />
+        {/* CartProvider is a Client Component, but SiteHeader (Server
+            Component) can still be passed into it as children — Next.js
+            renders the server subtree first and hands it down opaquely. */}
+        <CartProvider>
+          <SiteHeader />
+          <main className="flex-1">{children}</main>
+          <Toaster />
+        </CartProvider>
       </body>
     </html>
   );
