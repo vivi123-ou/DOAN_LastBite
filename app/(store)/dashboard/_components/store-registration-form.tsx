@@ -13,6 +13,7 @@ export function StoreRegistrationForm() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [phone, setPhone] = useState("");
   const [addressLine, setAddressLine] = useState("");
   const [coords, setCoords] = useState<Coordinates | null>(null);
   const [locating, setLocating] = useState(false);
@@ -43,6 +44,7 @@ export function StoreRegistrationForm() {
       await registerStoreAction({
         name,
         description: description || undefined,
+        phone: phone || undefined,
         addressLine,
         lat: coords.lat,
         lng: coords.lng,
@@ -74,6 +76,8 @@ export function StoreRegistrationForm() {
             onNameChange={setName}
             description={description}
             onDescriptionChange={setDescription}
+            phone={phone}
+            onPhoneChange={setPhone}
             addressLine={addressLine}
             onAddressLineChange={setAddressLine}
             coords={coords}

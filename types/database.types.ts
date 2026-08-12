@@ -70,6 +70,7 @@ export interface Database {
           tier: "free" | "premium";
           logo_url: string | null;
           banner_url: string | null;
+          phone: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;

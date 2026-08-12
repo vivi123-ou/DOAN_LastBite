@@ -17,6 +17,7 @@ function toDomain(row: StoreRow): Store {
     tier: row.tier,
     logoUrl: row.logo_url,
     bannerUrl: row.banner_url,
+    phone: row.phone,
     isActive: row.is_active,
     createdAt: row.created_at,
   };
@@ -122,6 +123,7 @@ export async function registerStore(
       geog: `SRID=4326;POINT(${input.lng} ${input.lat})`,
       lat: input.lat,
       lng: input.lng,
+      phone: input.phone || null,
     })
     .select("*")
     .single();
@@ -157,6 +159,7 @@ export async function updateStore(
       geog: `SRID=4326;POINT(${input.lng} ${input.lat})`,
       lat: input.lat,
       lng: input.lng,
+      phone: input.phone || null,
       ...(input.logoUrl !== undefined && { logo_url: input.logoUrl }),
       ...(input.bannerUrl !== undefined && { banner_url: input.bannerUrl }),
     })

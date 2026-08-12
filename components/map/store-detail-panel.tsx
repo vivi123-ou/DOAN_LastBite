@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ImageOff, MapPin, Store as StoreIcon, X } from "lucide-react";
+import { ImageOff, MapPin, Phone, Store as StoreIcon, X } from "lucide-react";
 import type { Store } from "@/lib/domain/store";
 import type { StoreComboSummary } from "@/lib/domain/combo";
 
@@ -116,6 +116,15 @@ export function StoreDetailPanel({ storeId, onClose }: StoreDetailPanelProps) {
                 <MapPin className="mt-0.5 size-3.5 shrink-0" />
                 {store.addressLine}
               </p>
+              {store.phone && (
+                <a
+                  href={`tel:${store.phone}`}
+                  className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+                >
+                  <Phone className="size-3.5 shrink-0" />
+                  {store.phone}
+                </a>
+              )}
             </div>
             {store.description && <p className="text-sm text-muted-foreground">{store.description}</p>}
 

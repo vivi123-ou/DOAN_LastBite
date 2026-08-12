@@ -12,6 +12,7 @@ export interface Store {
   tier: "free" | "premium";
   logoUrl: string | null;
   bannerUrl: string | null;
+  phone: string | null;
   isActive: boolean;
   createdAt: string;
 }
@@ -22,6 +23,7 @@ export interface RegisterStoreInput {
   addressLine: string;
   lat: number;
   lng: number;
+  phone?: string;
 }
 
 // Same field set as RegisterStoreInput plus the two images, which only
@@ -36,4 +38,5 @@ export interface UpdateStoreInput {
   lng: number;
   logoUrl?: string | null;
   bannerUrl?: string | null;
+  phone?: string;
 }

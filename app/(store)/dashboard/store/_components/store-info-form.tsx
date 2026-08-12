@@ -20,6 +20,7 @@ export function StoreInfoForm({ store }: { store: Store }) {
   const router = useRouter();
   const [name, setName] = useState(store.name);
   const [description, setDescription] = useState(store.description ?? "");
+  const [phone, setPhone] = useState(store.phone ?? "");
   const [addressLine, setAddressLine] = useState(store.addressLine);
   const [coords, setCoords] = useState<Coordinates | null>({ lat: store.lat, lng: store.lng });
   const [locating, setLocating] = useState(false);
@@ -52,6 +53,7 @@ export function StoreInfoForm({ store }: { store: Store }) {
       await updateStoreAction({
         name,
         description: description || undefined,
+        phone: phone || undefined,
         addressLine,
         lat: coords.lat,
         lng: coords.lng,
@@ -101,6 +103,8 @@ export function StoreInfoForm({ store }: { store: Store }) {
           onNameChange={setName}
           description={description}
           onDescriptionChange={setDescription}
+          phone={phone}
+          onPhoneChange={setPhone}
           addressLine={addressLine}
           onAddressLineChange={setAddressLine}
           coords={coords}

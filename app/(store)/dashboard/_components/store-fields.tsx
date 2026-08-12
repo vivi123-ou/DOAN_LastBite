@@ -26,6 +26,8 @@ interface StoreFieldsProps {
   onNameChange: (value: string) => void;
   description: string;
   onDescriptionChange: (value: string) => void;
+  phone: string;
+  onPhoneChange: (value: string) => void;
   addressLine: string;
   onAddressLineChange: (value: string) => void;
   coords: Coordinates | null;
@@ -47,6 +49,8 @@ export function StoreFields({
   onNameChange,
   description,
   onDescriptionChange,
+  phone,
+  onPhoneChange,
   addressLine,
   onAddressLineChange,
   coords,
@@ -111,6 +115,19 @@ export function StoreFields({
           onChange={(e) => onDescriptionChange(e.target.value)}
           rows={3}
         />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="store-phone">Số điện thoại liên hệ</Label>
+        <Input
+          id="store-phone"
+          type="tel"
+          value={phone}
+          onChange={(e) => onPhoneChange(e.target.value)}
+          placeholder="090 xxx xxxx"
+        />
+        <p className="text-xs text-muted-foreground">
+          Hiển thị cho khách trên bản đồ để họ có thể liên hệ trực tiếp với cửa hàng.
+        </p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="store-address">Địa chỉ</Label>
