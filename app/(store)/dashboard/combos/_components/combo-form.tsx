@@ -48,6 +48,19 @@ function toTimeOnly(d: Date): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Which slice of the [now, now + MAX_BEST_BEFORE_HOURS] window falls on the
+// given date — e.g. today only offers times from now onward; the boundary
+// day only offers times up to the matching cutoff.
+function computeBestBeforeTimeBounds(date: string): { minTime?: string; maxTime?: string } {
+  if (!date) return {};
+  const now = new Date();
+  const max = new Date(now.getTime() + MAX_BEST_BEFORE_HOURS * 60 * 60_000);
+  const bounds: { minTime?: string; maxTime?: string } = {};
+  if (date === toDateOnly(now)) bounds.minTime = toTimeOnly(now);
+  if (date === toDateOnly(max)) bounds.maxTime = toTimeOnly(max);
+  return bounds;
+}
+
 // Displays with Vietnamese thousands separators ("." — see toLocaleString(vi-VN)
 // usage elsewhere: combo-card.tsx, combo detail page) while state stays a plain
 // digit string, so the submitted value is unaffected by formatting.
@@ -102,6 +115,39 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
     const max = new Date(now.getTime() + MAX_BEST_BEFORE_HOURS * 60 * 60_000);
     return { min: toDateOnly(now), max: toDateOnly(max) };
   }, []);
+
+  // Narrows the TimeSelect's options to whichever slice of the 24h window
+  // falls on the chosen date — e.g. picking today only offers times from
+  // now onward; picking the boundary day only offers times up to the
+  // matching cutoff — instead of letting an out-of-range date+time combo
+  // only get caught after submitting.
+  const bestBeforeTimeBounds = useMemo(
+    () => computeBestBeforeTimeBounds(bestBeforeDate),
+    [bestBeforeDate]
+  );
+
+  function handleCustomBestBeforeToggle(checked: boolean) {
+    setCustomBestBefore(checked);
+    if (checked && !bestBeforeDate) {
+      setBestBeforeDate(bestBeforeDateBounds.min);
+    }
+  }
+
+  // Event-driven (not a useEffect) — computed and applied synchronously in
+  // response to the date input changing, rather than reactively watching
+  // bestBeforeDate, so switching dates can't leave a stale, now-invalid
+  // time selected (e.g. had "hôm nay 08:00", switched to tomorrow's cutoff
+  // of 07:30 — snap the time back inside the new window immediately).
+  function handleBestBeforeDateChange(newDate: string) {
+    setBestBeforeDate(newDate);
+    const bounds = computeBestBeforeTimeBounds(newDate);
+    setBestBeforeTime((current) => {
+      if (!current) return current;
+      if (bounds.minTime && current < bounds.minTime) return bounds.minTime;
+      if (bounds.maxTime && current > bounds.maxTime) return bounds.maxTime;
+      return current;
+    });
+  }
 
   function updateItem(index: number, patch: Partial<ComboItemInput>) {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
@@ -225,7 +271,7 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
             <Switch
               id="custom-best-before"
               checked={customBestBefore}
-              onCheckedChange={setCustomBestBefore}
+              onCheckedChange={handleCustomBestBeforeToggle}
             />
           </div>
         </div>
@@ -246,7 +292,7 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
                   id="best-before-date"
                   type="date"
                   value={bestBeforeDate}
-                  onChange={(e) => setBestBeforeDate(e.target.value)}
+                  onChange={(e) => handleBestBeforeDateChange(e.target.value)}
                   min={bestBeforeDateBounds.min}
                   max={bestBeforeDateBounds.max}
                   required
@@ -256,12 +302,22 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
                 <Label htmlFor="best-before-time" className="text-xs text-muted-foreground">
                   Giờ
                 </Label>
-                <TimeSelect id="best-before-time" value={bestBeforeTime} onChange={setBestBeforeTime} />
+                <TimeSelect
+                  id="best-before-time"
+                  value={bestBeforeTime}
+                  onChange={setBestBeforeTime}
+                  minTime={bestBeforeTimeBounds.minTime}
+                  maxTime={bestBeforeTimeBounds.maxTime}
+                />
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Tối đa {MAX_BEST_BEFORE_HOURS} giờ kể từ bây giờ — bán qua đêm vẫn chọn được, nhưng
-              không được đặt quá xa.
+              Tối đa {MAX_BEST_BEFORE_HOURS} giờ kể từ bây giờ (theo khuyến nghị an toàn thực
+              phẩm cho đồ ăn cuối ngày) — chọn ngày trước, danh sách giờ sẽ tự giới hạn còn{" "}
+              <strong>
+                {bestBeforeTimeBounds.minTime ?? "00:00"} – {bestBeforeTimeBounds.maxTime ?? "23:45"}
+              </strong>{" "}
+              cho ngày đó.
             </p>
           </>
         )}
