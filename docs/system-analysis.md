@@ -324,7 +324,105 @@ f_unaccent(text) returns text   -- wrapper IMMUTABLE quanh unaccent() (vốn ch�
 
 ---
 
-## 8. Ghi chú thiết kế quan trọng cần giữ khi vẽ sơ đồ (để không vẽ sai bản chất)
+## 8. Cơ chế hoạt động chi tiết (để trình bày/bảo vệ đồ án)
+
+Phần này giải thích **bản chất thuật toán**, không chỉ vị trí file — dùng khi cần trình bày miệng "nó hoạt động như thế nào" thay vì chỉ "nó nằm ở đâu".
+
+### 8.1. Cơ chế giảm giá động (Dynamic Pricing) — nằm ở đâu, giảm theo cơ chế gì
+
+**Vị trí 2 bản song song (bắt buộc giống hệt nhau về công thức):**
+| Bản | File | Dùng khi nào |
+|---|---|---|
+| SQL (Postgres function) | `supabase/migrations/0017_dynamic_pricing_multiplicative.sql` — hàm `dynamic_combo_price()` | Bên trong `nearby_combos()` và `search_combos()` — vì 2 RPC này chạy trong Postgres, không gọi được code TypeScript |
+| TypeScript | `lib/pricing/strategies/stock-based-decay.strategy.ts` — class `StockBasedDecayStrategy` (dùng cho trang chi tiết combo, dashboard cửa hàng) + hàm `computeStockBasedDecayPrice()` (dùng cho lúc thanh toán và map panel) | Mọi nơi code JS/TS đọc giá combo trực tiếp, không qua 2 RPC trên |
+
+**Cơ chế: giảm giá liên tục theo 2 yếu tố nhân với nhau (multiplicative decay), KHÔNG phải giảm theo mốc thời gian cố định.** Đây là yêu cầu bắt buộc của đồ án (`.claude/rules/business-rules.md`): khách hàng không được "canh giờ" để chắc chắn có giá giảm, vì công thức luôn được **tính lại tại đúng thời điểm truy vấn** (`now()`), không có bước nhảy giá cố định nào cả.
+
+**Công thức:**
+```
+current_price = round( original_price × (1 − 0.5 × timeUrgency × stockPressure) / 500 ) × 500
+
+trong đó:
+  timeUrgency   = (thời điểm hiện tại − created_at) / (best_before − created_at)   , giới hạn [0, 1]
+                  → "đã trôi qua bao nhiêu % thời gian được phép bán"
+
+  stockPressure = remaining_stock / initial_stock                                  , giới hạn [0, 1]
+                  → "còn tồn lại bao nhiêu % số lượng ban đầu"
+```
+
+- **Mức giảm tối đa: 50% giá gốc** (hệ số `0.5` đứng trước) — chỉ đạt được khi `timeUrgency = 1` (sắp hết hạn) **VÀ** `stockPressure = 1` (chưa bán được món nào).
+- **Nhân, không cộng** — đây là điểm quan trọng nhất, từng bị sửa 1 lần (bug thật, xem `0016` → `0017`):
+  - Bản đầu (`0016`, cộng): `0.5×timeUrgency + 0.5×stockPressure` → 1 combo **vừa đăng** (timeUrgency=0) nhưng chưa bán được gì (stockPressure=1 luôn đúng, vì mới đăng thì chưa ai mua) vẫn bị trừ sẵn `0.5 × 0.5 = 25%` — vô lý, vì mới đăng thì chưa có gì để "giảm".
+  - Bản sửa (`0017`, nhân): `timeUrgency × stockPressure` → nếu `timeUrgency = 0` thì tích số **luôn = 0**, bất kể `stockPressure` là bao nhiêu → combo mới đăng = **0% giảm**, đúng bản chất.
+- **Làm tròn về bội số 500đ** (`round(... / 500) × 500`) — để giá hiển thị đẹp (vd 47.500đ, không phải 47.328đ).
+
+**Ví dụ số cụ thể** (combo giá gốc 100.000đ, hạn bán 10 tiếng kể từ lúc đăng, ban đầu có 10 phần):
+
+| Tình huống | timeUrgency | stockPressure | Tích | Giá hiện tại | % giảm |
+|---|---|---|---|---|---|
+| Vừa đăng, chưa bán được gì | 0/10 = 0 | 10/10 = 1.0 | 0 | 100.000đ | 0% |
+| Qua 5 tiếng, còn 10/10 phần (ế) | 5/10 = 0.5 | 10/10 = 1.0 | 0.5 | 75.000đ | 25% |
+| Qua 5 tiếng, đã bán 7 phần (còn 3) | 5/10 = 0.5 | 3/10 = 0.3 | 0.15 | 92.500đ | 7.5% |
+| Sắp hết hạn (9.5/10 tiếng), còn nguyên 10 phần | 0.95 | 1.0 | 0.95 | ~52.500đ | ~47.5% |
+| Sắp hết hạn, chỉ còn 1 phần | 0.95 | 0.1 | 0.095 | ~95.500đ | ~4.75% |
+
+→ Ý nghĩa kinh doanh: **combo bán chạy (stockPressure thấp) gần như không bị giảm giá dù sắp hết hạn** — vì không có áp lực tồn kho; **combo ế (stockPressure cao) mới thực sự bị giảm sâu khi gần hết hạn** — đúng tinh thần "giảm để đẩy hàng tồn trước khi hết hạn", không phải giảm đại trà.
+
+**Nơi công thức được áp dụng thực tế (3 điểm chạm, đều tính lại "tươi" mỗi lần, không đọc giá đã lưu sẵn):**
+1. Danh sách/tìm kiếm trang chủ (`nearby_combos()`, `search_combos()`) — giá hiển thị lúc lướt.
+2. Trang chi tiết combo + dashboard cửa hàng — qua `StockBasedDecayStrategy` (Strategy pattern, `lib/pricing/strategies/pricing-strategy.factory.ts` chọn class này vì `combos.pricing_strategy = 'stock_based_decay'`).
+3. **Lúc thanh toán** (`order.builder.ts` gọi `getSnapshotsByIds()` → `computeStockBasedDecayPrice()`) — tính lại giá **tại đúng khoảnh khắc bấm mua**, không tin giá đã cache trên trình duyệt trước đó. Đây chính là cơ chế khiến khách "không thể canh giờ để chắc chắn mua được giá rẻ" — vì giá luôn được chốt lại ngay lúc submit đơn, không phải giá nhìn thấy lúc lướt web trước đó.
+
+### 8.2. Cơ chế các hàm tìm kiếm hiện tại — giảm/lọc theo cơ chế gì
+
+Có 2 cơ chế lọc/tìm khác hẳn nhau về bản chất thuật toán, dùng 2 loại index Postgres khác nhau:
+
+**a) Tìm theo VỊ TRÍ (`nearby_combos()`) — cơ chế K-Nearest-Neighbor (KNN) trên dữ liệu địa lý:**
+- Toạ độ cửa hàng lưu ở kiểu `geography(Point, 4326)` (chuẩn WGS84 — cùng hệ toạ độ GPS/Google Maps dùng).
+- **Lọc bán kính:** `ST_DWithin(store.geog, điểm_người_dùng, radius_m)` — hàm PostGIS tính "cửa hàng có nằm trong bán kính X mét không", có index hỗ trợ (không phải tính khoảng cách từng dòng rồi lọc).
+- **Sắp xếp gần → xa:** `ORDER BY store.geog <-> điểm_người_dùng` — toán tử `<->` là **KNN distance operator** của PostGIS, được tối ưu bởi **chỉ mục GiST** (`idx_stores_geog`). Nghĩa là Postgres **không quét hết bảng** rồi tính khoảng cách từng dòng — chỉ mục GiST tự "duyệt" theo thứ tự gần dần, dừng lại khi đủ `max_results` dòng. Đây là lý do tài liệu nhấn mạnh "không bao giờ tính `ST_Distance` cho mọi dòng rồi sort ở tầng ứng dụng" — làm vậy sẽ chậm dần khi số cửa hàng tăng lên (quét toàn bảng), còn cách hiện tại thì gần như không đổi tốc độ dù có bao nhiêu cửa hàng.
+- Không có so khớp chữ/tên nào ở đây — thuần vị trí + loại combo (`category_id`, optional).
+
+**b) Tìm theo TÊN (`search_combos()`, `search_profiles()`) — cơ chế Trigram (chuỗi con 3 ký tự):**
+- Dùng extension `pg_trgm` của Postgres: mỗi chuỗi được băm thành các "trigram" — cụm 3 ký tự liên tiếp. Ví dụ `"Trà Sữa"` (sau khi bỏ dấu, viết thường → `"tra sua"`) được băm thành các trigram: `  t`, ` tr`, `tra`, `ra `, `a s`, ` su`, `sua`, `ua ` ...
+- So khớp bằng `ILIKE '%từ_khoá%'` trên biểu thức `lower(f_unaccent(tên))` — nghĩa là **tìm không phân biệt hoa/thường, không phân biệt dấu tiếng Việt** (gõ "tra sua" vẫn ra "Trà Sữa"). `f_unaccent()` là hàm bọc riêng quanh `unaccent()` gốc của Postgres — lý do phải bọc là vì `unaccent()` gốc không thể đánh index trực tiếp (thuộc tính `STABLE`, không phải `IMMUTABLE`), nên phải có 1 wrapper `IMMUTABLE` mới cho phép tạo index trên biểu thức đó.
+- **Chỉ mục GIN kiểu `gin_trgm_ops`** trên chính biểu thức `lower(f_unaccent(tên))` — đây là điều khiến `ILIKE '%...%'` (tìm chuỗi con ở **bất kỳ vị trí nào** trong tên, không chỉ đầu chuỗi) vẫn dùng được index, thay vì quét toàn bảng như `ILIKE` thông thường không có index trợ giúp.
+- **Vì sao không dùng Full-Text Search (`tsvector`) như thường thấy:** Postgres không có bộ từ điển tiếng Việt cho FTS — trigram cho kết quả "gõ thiếu/gõ tắt vẫn ra" tốt hơn nhiều so với FTS trong trường hợp tiếng Việt, nên đây là lựa chọn kỹ thuật có chủ đích, không phải thiếu sót.
+- `search_combos()` so khớp trên **cả 2 cột cùng lúc** (`combos.name` OR `stores.name`) — gõ tên món hoặc tên quán đều ra kết quả.
+
+**Bảng so sánh nhanh:**
+| | `nearby_combos()` | `search_combos()` |
+|---|---|---|
+| Lọc theo | Vị trí (bán kính) | Vị trí + **tên** + giá + loại |
+| Cơ chế lõi | KNN + GiST index (`<->`, `ST_DWithin`) | Trigram + GIN index (`ILIKE` trên `f_unaccent`) |
+| Sắp xếp mặc định | Gần → xa (tận dụng index) | Có thể đổi (giá/mới nhất/gần) — vì vậy phải tách hàm riêng, không gộp chung |
+| Có tham số tên (`in_query`) | Không | Có |
+
+### 8.3. Cơ chế "tìm kiếm" trên bản đồ (`/map`) — thực ra không phải 1 thuật toán riêng
+
+Đây là điểm hay bị hiểu nhầm là "bản đồ có tìm kiếm riêng" — **thực tế `/map` không có hàm tìm kiếm nào của chính nó**. Cơ chế thật sự:
+
+```
+1. app/(customer)/map/page.tsx lấy vị trí GPS trình duyệt (navigator.geolocation)
+2. Gọi ĐÚNG API /api/combos/nearby (giống hệt §8.2a — nearby_combos(), bán kính mặc định 10km,
+   KHÔNG có ô nhập từ khoá trên bản đồ)
+3. components/map/map-view.tsx nhận danh sách combo trả về, GOM NHÓM lại theo store_id ở
+   phía client (useMemo) — vì 1 cửa hàng có thể có nhiều combo, nhưng bản đồ chỉ cần
+   1 ghim (marker) cho mỗi cửa hàng, không phải 1 ghim cho mỗi combo
+4. Bấm vào 1 ghim → mở components/map/store-detail-panel.tsx, GỌI TIẾP 2 API RIÊNG:
+   - GET /api/stores/[id]          → thông tin cửa hàng (tên, ảnh bìa, địa chỉ, SĐT)
+   - GET /api/stores/[id]/combos   → danh sách combo của RIÊNG cửa hàng đó, có PHÂN TRANG
+     (listActiveByStorePaginated() trong combo.repository.ts — mỗi lần lấy 10 combo)
+5. Cuộn tới cuối danh sách trong panel → IntersectionObserver phát hiện, tự gọi tiếp
+   /api/stores/[id]/combos?offset=10, offset=20... ("kéo tới đâu tải tới đó", không tải hết
+   1 lần để tránh giật/lag nếu cửa hàng có rất nhiều combo)
+```
+
+→ Tóm lại: **bản đồ dùng lại đúng cơ chế KNN + GiST ở §8.2a để tìm cửa hàng gần**, chỉ khác ở bước hiển thị (gom theo cửa hàng thành ghim) và có thêm 1 lớp phân trang riêng khi xem chi tiết 1 cửa hàng cụ thể. Nếu vẽ sequence diagram, đây nên là **1 nhánh dùng lại participant `nearby_combos()` đã vẽ ở luồng tìm theo vị trí**, không phải 1 hộp thoại "Map Search Engine" riêng biệt.
+
+---
+
+## 9. Ghi chú thiết kế quan trọng cần giữ khi vẽ sơ đồ (để không vẽ sai bản chất)
 
 - **`nearby_combos()` và `search_combos()` là 2 hàm SQL tách biệt hoàn toàn**, không phải 1 hàm với tham số optional — lý do kỹ thuật là index-assisted ordering (đã giải thích ở §2.1). Đừng vẽ gộp thành 1 node.
 - **Repository pattern là ranh giới bắt buộc**: không có mũi tên nào được vẽ thẳng từ `app/` xuống Supabase — luôn phải qua `lib/repositories/`.
