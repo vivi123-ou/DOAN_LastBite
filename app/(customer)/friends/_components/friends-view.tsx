@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Search, UserPlus, Check, X, MessageCircle, UserMinus } from "lucide-react";
+import { Search, UserPlus, Check, X, MessageCircle, UserMinus, UserCheck, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,6 +29,16 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
   const incoming = initialFriendships.filter((f) => f.isIncomingRequest);
   const accepted = initialFriendships.filter((f) => f.status === "accepted");
   const outgoing = initialFriendships.filter((f) => f.status === "pending" && !f.isIncomingRequest);
+
+  // search_profiles() (the RPC behind searchUsersAction) has no idea who
+  // the caller is already friends/pending with — it just matches on name —
+  // so a search result needs to be cross-referenced against the friendship
+  // list already loaded for this page, or someone you're already friends
+  // with (or already have a pending request with, either direction) keeps
+  // showing a live "Kết bạn" button that just errors ("Lời mời kết bạn đã
+  // tồn tại." / "Hai bạn đã là bạn bè.") when clicked instead of reflecting
+  // the real relationship.
+  const friendshipByUserId = new Map(initialFriendships.map((f) => [f.userId, f]));
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -101,21 +111,36 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
             <p className="text-sm text-muted-foreground">Không tìm thấy ai phù hợp.</p>
           ) : (
             <ul className="space-y-2">
-              {results.map((u) => (
-                <li key={u.userId} className="flex items-center justify-between gap-3 rounded-md border p-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      {u.avatarUrl && <AvatarImage src={u.avatarUrl} alt="" />}
-                      <AvatarFallback>{initialOf(u.fullName)}</AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm font-medium">{u.fullName ?? "Người dùng LastBite"}</span>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => handleAdd(u.userId)}>
-                    <UserPlus className="mr-1.5 size-4" />
-                    Kết bạn
-                  </Button>
-                </li>
-              ))}
+              {results.map((u) => {
+                const existing = friendshipByUserId.get(u.userId);
+                return (
+                  <li key={u.userId} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        {u.avatarUrl && <AvatarImage src={u.avatarUrl} alt="" />}
+                        <AvatarFallback>{initialOf(u.fullName)}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium">{u.fullName ?? "Người dùng LastBite"}</span>
+                    </div>
+                    {existing?.status === "accepted" ? (
+                      <span className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                        <UserCheck className="size-4" />
+                        Đã là bạn bè
+                      </span>
+                    ) : existing?.status === "pending" ? (
+                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Clock className="size-4" />
+                        {existing.isIncomingRequest ? "Đã gửi lời mời cho bạn" : "Đã gửi lời mời"}
+                      </span>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => handleAdd(u.userId)}>
+                        <UserPlus className="mr-1.5 size-4" />
+                        Kết bạn
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
