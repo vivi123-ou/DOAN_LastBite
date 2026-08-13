@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
-import type { Order, OrderStatus, StoreMonthlyStats } from "@/lib/domain/order";
+import type { Order, OrderStatus, OrderStatusEvent, StoreMonthlyStats } from "@/lib/domain/order";
 import type { BuiltOrder } from "@/lib/factories/order.builder";
 import { adjustBalance, recordOrderImpact } from "@/lib/repositories/net-zero.repository";
 
@@ -99,6 +99,13 @@ export async function create(adminClient: SupabaseClient<Database>, built: Built
     .select("*")
     .single();
   if (error) throw error;
+
+  // First entry in the status timeline (order-status-timeline.tsx) — admin
+  // client, same as the rest of this cross-actor checkout write.
+  const { error: historyError } = await adminClient
+    .from("order_status_history")
+    .insert({ order_id: order.id, status: "pending" });
+  if (historyError) throw historyError;
 
   const { error: itemsError } = await adminClient
     .from("order_items")
@@ -199,9 +206,56 @@ export async function updateStatus(
   const { error } = await client.from("orders").update({ status }).eq("id", id);
   if (error) throw error;
 
+  // order_status_history_insert_store_owner RLS (0023) already scopes this
+  // to the caller's own store's orders — same regular client, no admin
+  // needed, matching the update above it.
+  const { error: historyError } = await client
+    .from("order_status_history")
+    .insert({ order_id: id, status });
+  if (historyError) throw historyError;
+
   if (status === "rejected" || status === "cancelled") {
     await restoreStock(client, id);
   }
+}
+
+// Newest first — matches the Shopee/Fahasa-style timeline reference this
+// UI is modeled on (order-status-timeline.tsx).
+export async function listStatusHistory(
+  client: SupabaseClient<Database>,
+  orderId: string
+): Promise<OrderStatusEvent[]> {
+  const { data, error } = await client
+    .from("order_status_history")
+    .select("status, changed_at")
+    .eq("order_id", orderId)
+    .order("changed_at", { ascending: false });
+  if (error) throw error;
+  return data.map((row) => ({ status: row.status, changedAt: row.changed_at }));
+}
+
+// Batched variant for a whole order list (dashboard/orders/page.tsx) — one
+// query for every order on the page instead of one per card.
+export async function listStatusHistoryForOrders(
+  client: SupabaseClient<Database>,
+  orderIds: string[]
+): Promise<Map<string, OrderStatusEvent[]>> {
+  if (orderIds.length === 0) return new Map();
+
+  const { data, error } = await client
+    .from("order_status_history")
+    .select("order_id, status, changed_at")
+    .in("order_id", orderIds)
+    .order("changed_at", { ascending: false });
+  if (error) throw error;
+
+  const byOrder = new Map<string, OrderStatusEvent[]>();
+  for (const row of data) {
+    const existing = byOrder.get(row.order_id) ?? [];
+    existing.push({ status: row.status, changedAt: row.changed_at });
+    byOrder.set(row.order_id, existing);
+  }
+  return byOrder;
 }
 
 async function restoreStock(client: SupabaseClient<Database>, orderId: string): Promise<void> {

@@ -25,6 +25,15 @@ export interface CartItem {
   pickupSupported: boolean;
 }
 
+// order_status_history (0023) — a real per-transition timestamp record, so
+// the customer/store timeline can show "vào lúc mấy giờ, đã tới trạng thái
+// nào" instead of just the single current status. Newest first, matching
+// the Shopee/Fahasa-style tracking reference the timeline UI is modeled on.
+export interface OrderStatusEvent {
+  status: OrderStatus;
+  changedAt: string;
+}
+
 export interface OrderItem {
   id: string;
   comboId: string;

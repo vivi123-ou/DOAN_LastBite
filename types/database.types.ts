@@ -289,6 +289,20 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["order_items"]["Row"]>;
         Relationships: [];
       };
+      order_status_history: {
+        Row: {
+          id: string;
+          order_id: string;
+          status: "pending" | "accepted" | "rejected" | "preparing" | "ready" | "completed" | "cancelled";
+          changed_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["order_status_history"]["Row"]> & {
+          order_id: string;
+          status: "pending" | "accepted" | "rejected" | "preparing" | "ready" | "completed" | "cancelled";
+        };
+        Update: Partial<Database["public"]["Tables"]["order_status_history"]["Row"]>;
+        Relationships: [];
+      };
       payments: {
         Row: {
           id: string;

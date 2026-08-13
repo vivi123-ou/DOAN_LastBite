@@ -3,10 +3,11 @@ import { toDataURL } from "qrcode";
 import { CheckCircle2, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
-import { getById } from "@/lib/repositories/order.repository";
+import { getById, listStatusHistory } from "@/lib/repositories/order.repository";
 import { listForOrder } from "@/lib/repositories/review.repository";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { OrderStatusTimeline } from "@/components/order/order-status-timeline";
 import { SimulatePaymentButton } from "@/app/(customer)/orders/[id]/_components/simulate-payment-button";
 import { ReviewForm } from "@/app/(customer)/orders/[id]/_components/review-form";
 
@@ -39,6 +40,12 @@ export default async function OrderDetailPage({
   const reviews =
     order.status === "completed" ? await listForOrder(supabase, order.id).catch(() => []) : [];
   const reviewByOrderItem = new Map(reviews.map((r) => [r.orderItemId, r]));
+
+  // Same resilience exception as the reviews fetch above — order_status_history
+  // (0023) is a new table, and a missing *table* fails the whole query
+  // (unlike a missing column), so this degrades to an empty timeline rather
+  // than 500ing this page.
+  const statusHistory = await listStatusHistory(supabase, order.id).catch(() => []);
 
   const isPaid = order.paymentStatus === "success";
   let qrDataUrl: string | null = null;
@@ -132,6 +139,17 @@ export default async function OrderDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {statusHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Trạng thái đơn hàng</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <OrderStatusTimeline events={statusHistory} />
+          </CardContent>
+        </Card>
+      )}
 
       <div className="rounded-md border p-4 text-sm">
         <p>

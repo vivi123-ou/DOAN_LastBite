@@ -3,10 +3,11 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
-import { listForStore } from "@/lib/repositories/order.repository";
+import { listForStore, listStatusHistoryForOrders } from "@/lib/repositories/order.repository";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { OrderStatusActions } from "@/app/(store)/dashboard/orders/_components/order-status-actions";
+import { OrderStatusHistoryToggle } from "@/app/(store)/dashboard/orders/_components/order-status-history-toggle";
 import type { OrderStatus } from "@/lib/domain/order";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -43,6 +44,14 @@ export default async function StoreOrdersPage({
 
   const activeStatus = status as OrderStatus | undefined;
   const orders = await listForStore(supabase, store.id, activeStatus);
+  // Same "missing table" resilience exception used elsewhere in this app
+  // for new tables on pre-existing pages — degrades to no history shown
+  // (the toggle just won't render) rather than 500ing the whole dashboard
+  // if 0023 isn't applied yet.
+  const statusHistoryByOrder = await listStatusHistoryForOrders(
+    supabase,
+    orders.map((o) => o.id)
+  ).catch(() => new Map());
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 py-10">
@@ -91,8 +100,9 @@ export default async function StoreOrdersPage({
                 </div>
                 <Badge variant="secondary">{STATUS_LABEL[order.status]}</Badge>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <OrderStatusActions orderId={order.id} status={order.status} />
+                <OrderStatusHistoryToggle events={statusHistoryByOrder.get(order.id) ?? []} />
               </CardContent>
             </Card>
           ))}
