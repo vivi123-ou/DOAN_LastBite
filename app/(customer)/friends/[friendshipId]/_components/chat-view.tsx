@@ -223,7 +223,8 @@ export function ChatView({
             <DialogTitle>Mời mua chung</DialogTitle>
             <DialogDescription>
               Chọn một sản phẩm cụ thể để rủ bạn bè mua chung. Mua càng nhiều người, càng nhiều khả
-              năng đạt mức giảm giá theo số lượng của cửa hàng. Lời mời tự động hết hạn sau 3 ngày.
+              năng đạt mức giảm giá theo số lượng của cửa hàng. Lời mời sẽ tự động hết hạn cùng lúc
+              với hạn bán (Best Before) của sản phẩm đó.
             </DialogDescription>
           </DialogHeader>
 

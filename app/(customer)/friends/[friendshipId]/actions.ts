@@ -8,6 +8,7 @@ import { getById as getFriendship } from "@/lib/repositories/friend.repository";
 import { getById as getProfileById } from "@/lib/repositories/profile.repository";
 import { send as sendMessage } from "@/lib/repositories/message.repository";
 import { create as createNotification } from "@/lib/repositories/notification.repository";
+import { getSnapshotsByIds } from "@/lib/repositories/combo.repository";
 import * as groupBuy from "@/lib/repositories/group-buy.repository";
 import type { GroupOrderInvite } from "@/lib/domain/social";
 
@@ -44,10 +45,17 @@ export async function sendMessageAction(friendshipId: string, body: string) {
 
 // Not user-configurable (see chat-view.tsx — the deadline chip picker was
 // removed per explicit feedback: "hệ thống tự mặc định" instead of asking).
-// 3 days was already the UI's own default selection, kept as the one fixed
-// value rather than picked arbitrarily.
-const GROUP_ORDER_DEADLINE_DAYS = 3;
-
+// The deadline is the combo's *own* best_before, not a fixed day count —
+// explicit follow-up feedback: a group-buy invite for a same-day combo
+// (this app's combos typically expire in hours, not days — see
+// business-rules.md's per-combo Best Before rule) made no sense staying
+// "open" for a fixed 3 days after the product itself was long gone/unbuyable.
+// Tying the two together means the invite naturally shows "Đã hết hạn" —
+// same isExpired check already in group-order-invite-card.tsx, no separate
+// logic needed there — at the exact moment the product stops being
+// sellable, and checkout's resolveCheckoutDiscount() (which also checks
+// `deadline <= now()`) rejects it at the same moment too.
+//
 // "Mời mua chung" — creates the group_orders row (+ auto-joins the
 // initiator), then posts it as a message carrying group_order_id so it
 // renders as an invite card in the thread (group-order-invite-card.tsx).
@@ -61,12 +69,17 @@ export async function createGroupOrderInviteAction(
   const { supabase, userId, otherId } = await requireParty(friendshipId);
 
   const admin = createAdminClient();
-  const deadline = new Date(Date.now() + GROUP_ORDER_DEADLINE_DAYS * 86_400_000).toISOString();
+
+  const [combo] = await getSnapshotsByIds(admin, [comboId]);
+  if (!combo || combo.status !== "active" || new Date(combo.bestBefore) <= new Date()) {
+    throw new Error("Sản phẩm này đã hết hạn hoặc không còn bán, không thể tạo lời mời.");
+  }
+
   const { id: groupOrderId } = await groupBuy.create(admin, {
     initiatorId: userId,
     storeId,
     comboId,
-    deadline,
+    deadline: combo.bestBefore,
   });
 
   await sendMessage(supabase, {
