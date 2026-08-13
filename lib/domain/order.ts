@@ -46,6 +46,8 @@ export interface Order {
   deliveryAddressLine: string | null;
   subtotal: number;
   discountAmount: number;
+  bulkDiscountPct: number;
+  groupOrderId: string | null;
   netZeroPointsUsed: number;
   totalAmount: number;
   paymentStatus: PaymentStatus;
@@ -68,6 +70,13 @@ export interface CreateOrderInput {
   // never trusted from the client, same rule as combo prices/stock).
   netZeroPointsToApply?: number;
   availableNetZeroPoints?: number;
+  // Checking out "theo nhóm" (group-buy) — groupOrderId comes straight from
+  // the client, but bulkDiscountPct is always resolved fresh server-side by
+  // the caller (group-buy.repository.ts's resolveCheckoutDiscount()) from
+  // the group's live total quantity, never trusted from the client, same
+  // rule as everything else here.
+  groupOrderId?: string;
+  bulkDiscountPct?: number;
 }
 
 export interface StoreMonthlyStats {

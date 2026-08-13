@@ -213,6 +213,7 @@ export interface Database {
           id: string;
           initiator_id: string;
           store_id: string;
+          combo_id: string | null;
           invite_code: string;
           deadline: string;
           status: "open" | "finalized" | "cancelled";
@@ -232,6 +233,7 @@ export interface Database {
           id: string;
           group_order_id: string;
           user_id: string;
+          quantity: number;
           joined_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["group_order_participants"]["Row"]> & {

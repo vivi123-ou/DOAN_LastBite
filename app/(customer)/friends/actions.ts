@@ -7,13 +7,31 @@ import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById as getProfileById } from "@/lib/repositories/profile.repository";
 import {
   getFriendshipBetween,
+  listFriendships,
   remove as removeFriendship,
   respondToRequest,
   searchUsers,
   sendRequest,
 } from "@/lib/repositories/friend.repository";
 import { create as createNotification } from "@/lib/repositories/notification.repository";
-import type { PublicProfile } from "@/lib/domain/social";
+import type { FriendSummary, PublicProfile } from "@/lib/domain/social";
+
+// Feeds the "Chia sẻ mua chung" friend picker on the combo detail page
+// (components/combo/share-group-buy-button.tsx) — only accepted friends
+// make sense there (you can't invite someone you're not even friends with
+// yet). Reuses listFriendships() rather than a new narrower repository
+// query — this app's friend list is small enough that filtering client-
+// side-of-the-action to `status === "accepted"` is simpler than a second
+// SQL shape for what's ultimately the same underlying data.
+export async function listAcceptedFriendsAction(): Promise<FriendSummary[]> {
+  const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) return [];
+
+  const admin = createAdminClient();
+  const friendships = await listFriendships(supabase, admin, userId);
+  return friendships.filter((f) => f.status === "accepted");
+}
 
 export async function searchUsersAction(query: string): Promise<PublicProfile[]> {
   const supabase = await createClient();

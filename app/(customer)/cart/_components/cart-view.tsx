@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Leaf, MapPin, Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { Leaf, MapPin, Minus, Plus, ShoppingCart, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,10 +13,15 @@ import { useCart } from "@/lib/cart/cart-context";
 import { getCurrentPosition, type Coordinates } from "@/lib/geo/geolocation";
 import { createOrderAction } from "@/app/(customer)/cart/actions";
 import { calculateRedemptionValue, VND_PER_POINT } from "@/lib/pricing/net-zero/net-zero.policy";
+import type { GroupOrderInvite } from "@/lib/domain/social";
 
 interface CartViewProps {
   isLoggedIn: boolean;
   netZeroPointsBalance: number;
+  groupOrderId?: string;
+  // Display-only — see cart/page.tsx. Never null-checked for the actual
+  // discount; createOrderAction resolves that fresh server-side regardless.
+  groupOrderInvite?: GroupOrderInvite | null;
 }
 
 // Two-column layout (items left, order summary + checkout right) — the
@@ -24,7 +29,12 @@ interface CartViewProps {
 // column stack with. The old "Ưu đãi" slot in that reference becomes
 // "Áp dụng điểm Net Zero" here — a real discount source (net-zero.policy.ts)
 // instead of a generic promo code box that had nothing behind it.
-export function CartView({ isLoggedIn, netZeroPointsBalance }: CartViewProps) {
+export function CartView({
+  isLoggedIn,
+  netZeroPointsBalance,
+  groupOrderId,
+  groupOrderInvite,
+}: CartViewProps) {
   const router = useRouter();
   const cart = useCart();
   const [fulfillmentType, setFulfillmentType] = useState<"pickup" | "delivery">("pickup");
@@ -90,6 +100,7 @@ export function CartView({ isLoggedIn, netZeroPointsBalance }: CartViewProps) {
         deliveryLng: effectiveType === "delivery" ? coords?.lng : undefined,
         items: cart.items.map((i) => ({ comboId: i.comboId, quantity: i.quantity })),
         netZeroPointsToApply: clampedPoints,
+        groupOrderId,
       });
       cart.clear();
       toast.success("Đặt hàng thành công!");
@@ -102,7 +113,29 @@ export function CartView({ isLoggedIn, netZeroPointsBalance }: CartViewProps) {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+    <div className="space-y-4">
+      {groupOrderId && (
+        <div className="flex items-start gap-2.5 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
+          <Users className="mt-0.5 size-4 shrink-0" />
+          <div>
+            <p className="font-medium">Đặt hàng theo nhóm mua chung</p>
+            {groupOrderInvite ? (
+              <p className="text-primary/80">
+                Cả nhóm đang có {groupOrderInvite.totalQuantity} phần
+                {groupOrderInvite.currentTier
+                  ? ` — đang được giảm ${groupOrderInvite.currentTier.discountPct}%, tự động áp vào đơn này.`
+                  : groupOrderInvite.nextTier
+                    ? ` — cần thêm ${groupOrderInvite.nextTier.minQuantity - groupOrderInvite.totalQuantity} phần nữa để được giảm ${groupOrderInvite.nextTier.discountPct}%.`
+                    : "."}
+              </p>
+            ) : (
+              <p className="text-primary/80">Không tìm thấy lời mời này, hoặc lời mời đã hết hạn.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
       <Card>
         <CardHeader>
           <CardTitle>{cart.storeName}</CardTitle>
@@ -300,6 +333,7 @@ export function CartView({ isLoggedIn, netZeroPointsBalance }: CartViewProps) {
             )}
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );

@@ -50,6 +50,8 @@ async function hydrate(
     deliveryAddressLine,
     subtotal: row.subtotal,
     discountAmount: row.discount_amount,
+    bulkDiscountPct: row.bulk_discount_pct,
+    groupOrderId: row.group_order_id,
     netZeroPointsUsed: row.net_zero_points_used,
     totalAmount: row.total_amount,
     paymentStatus: row.payment_status,

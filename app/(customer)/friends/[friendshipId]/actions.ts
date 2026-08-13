@@ -42,20 +42,30 @@ export async function sendMessageAction(friendshipId: string, body: string) {
   revalidatePath(`/friends/${friendshipId}`);
 }
 
+// Not user-configurable (see chat-view.tsx — the deadline chip picker was
+// removed per explicit feedback: "hệ thống tự mặc định" instead of asking).
+// 3 days was already the UI's own default selection, kept as the one fixed
+// value rather than picked arbitrarily.
+const GROUP_ORDER_DEADLINE_DAYS = 3;
+
 // "Mời mua chung" — creates the group_orders row (+ auto-joins the
 // initiator), then posts it as a message carrying group_order_id so it
 // renders as an invite card in the thread (group-order-invite-card.tsx).
+// `comboId` is required, not optional: the invite now points at a specific
+// product to buy together, not just a store with no idea what to buy.
 export async function createGroupOrderInviteAction(
   friendshipId: string,
   storeId: string,
-  deadline: string
+  comboId: string
 ) {
   const { supabase, userId, otherId } = await requireParty(friendshipId);
 
   const admin = createAdminClient();
+  const deadline = new Date(Date.now() + GROUP_ORDER_DEADLINE_DAYS * 86_400_000).toISOString();
   const { id: groupOrderId } = await groupBuy.create(admin, {
     initiatorId: userId,
     storeId,
+    comboId,
     deadline,
   });
 
@@ -77,13 +87,13 @@ export async function createGroupOrderInviteAction(
   revalidatePath(`/friends/${friendshipId}`);
 }
 
-export async function joinGroupOrderAction(groupOrderId: string) {
+export async function joinGroupOrderAction(groupOrderId: string, quantity: number) {
   const supabase = await createClient();
   const userId = await getCurrentUserId(supabase);
   if (!userId) throw new Error("Bạn cần đăng nhập.");
 
   const admin = createAdminClient();
-  await groupBuy.join(admin, groupOrderId, userId);
+  await groupBuy.join(admin, groupOrderId, userId, Math.max(1, Math.floor(quantity)));
 }
 
 export async function getGroupOrderInviteAction(groupOrderId: string): Promise<GroupOrderInvite | null> {

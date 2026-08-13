@@ -8,6 +8,7 @@ import { parseOrThrow } from "@/lib/validation/parse";
 import { getSnapshotsByIds } from "@/lib/repositories/combo.repository";
 import { getOwnerIdById } from "@/lib/repositories/store.repository";
 import { getSummary } from "@/lib/repositories/net-zero.repository";
+import { resolveCheckoutDiscount } from "@/lib/repositories/group-buy.repository";
 import { OrderBuilder } from "@/lib/factories/order.builder";
 import * as orderRepository from "@/lib/repositories/order.repository";
 
@@ -35,10 +36,20 @@ export async function createOrderAction(input: unknown): Promise<{ orderId: stri
   }
 
   const comboIds = parsed.items.map((i) => i.comboId);
-  const [snapshots, netZero] = await Promise.all([
+  const [snapshots, netZero, groupDiscount] = await Promise.all([
     getSnapshotsByIds(admin, comboIds),
     getSummary(admin, userId),
+    // Never trust a client-supplied bulk-discount percentage — resolved
+    // fresh here from the group order's own live total quantity. Returns
+    // null (no discount, discountPct effectively 0) for a missing/closed/
+    // expired group order, or one whose store doesn't match this cart —
+    // that last check matters because a group order is only ever valid for
+    // the specific store it was created for.
+    parsed.groupOrderId ? resolveCheckoutDiscount(admin, parsed.groupOrderId) : Promise.resolve(null),
   ]);
+  if (parsed.groupOrderId && (!groupDiscount || groupDiscount.storeId !== parsed.storeId)) {
+    throw new Error("Lời mời mua chung này đã hết hạn hoặc không hợp lệ.");
+  }
 
   const built = OrderBuilder.build(
     {
@@ -53,6 +64,8 @@ export async function createOrderAction(input: unknown): Promise<{ orderId: stri
       // rule as combo prices/stock (getSnapshotsByIds above).
       netZeroPointsToApply: parsed.netZeroPointsToApply,
       availableNetZeroPoints: netZero.pointsBalance,
+      groupOrderId: parsed.groupOrderId,
+      bulkDiscountPct: groupDiscount?.discountPct,
     },
     snapshots
   );

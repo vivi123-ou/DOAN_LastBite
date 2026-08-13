@@ -1,0 +1,13 @@
+-- Additive migration (0001-0018 applied and never edited). The group-buy
+-- invite flow only ever let you pick a *store* to buy from together
+-- ("Mời mua chung" showed just a store name with no idea what to actually
+-- buy) — real feedback: an invite should point at a specific *product*.
+--
+-- `combo_id` is nullable on purpose: `store_id` stays the field
+-- bulk_discount_tiers (phase 4, still not wired to checkout) will key off
+-- once that lands, since that table's discount tiers are store-scoped, not
+-- per-product — this column is purely to make an invite concretely say
+-- "mua chung món X" instead of just "mua chung ở cửa hàng Y". Nullable so
+-- it doesn't retroactively invalidate anything about the dormant table's
+-- original phase-4 design.
+alter table group_orders add column combo_id uuid references combos (id);
