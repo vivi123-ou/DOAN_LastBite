@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { ChevronRight, Leaf } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { listForCustomer } from "@/lib/repositories/order.repository";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { getImpactForOrders } from "@/lib/repositories/net-zero.repository";
+import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { OrderStatus } from "@/lib/domain/order";
 
@@ -41,6 +43,13 @@ export default async function OrdersPage({
   if (!userId) redirect("/login?next=/orders");
 
   const orders = await listForCustomer(supabase, userId);
+  // Same "missing table/row degrades gracefully" resilience posture as the
+  // order detail page's own net-zero lookup — a hiccup here shouldn't break
+  // the whole order list.
+  const netZeroByOrder = await getImpactForOrders(
+    supabase,
+    orders.map((o) => o.id)
+  ).catch(() => new Map());
   const activeTab = TABS.find((t) => t.key === tab) ?? TABS[0];
   const filteredOrders = activeTab.statuses
     ? orders.filter((o) => activeTab.statuses!.includes(o.status))
@@ -76,25 +85,38 @@ export default async function OrdersPage({
         </p>
       ) : (
         <div className="space-y-3">
-          {filteredOrders.map((order) => (
-            <Link key={order.id} href={`/orders/${order.id}`}>
-              <Card className="transition-shadow hover:shadow-md">
-                <CardHeader className="flex flex-row items-start justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-base">{order.storeName}</CardTitle>
-                    <p className="text-xs font-mono text-muted-foreground">
-                      Mã đơn: #{order.id.slice(0, 8).toUpperCase()}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {order.items.length} món · {order.totalAmount.toLocaleString("vi-VN")}đ ·{" "}
-                      {new Date(order.createdAt).toLocaleString("vi-VN")}
-                    </p>
-                  </div>
-                  <Badge variant="secondary">{STATUS_LABEL[order.status]}</Badge>
-                </CardHeader>
-              </Card>
-            </Link>
-          ))}
+          {filteredOrders.map((order) => {
+            const impact = netZeroByOrder.get(order.id);
+            return (
+              <Link key={order.id} href={`/orders/${order.id}`} className="block">
+                <Card className="transition-shadow hover:shadow-md">
+                  <CardHeader className="flex flex-row items-start justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-base">{order.storeName}</CardTitle>
+                      <p className="text-xs font-mono text-muted-foreground">
+                        Mã đơn: #{order.id.slice(0, 8).toUpperCase()}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {order.items.length} món · {order.totalAmount.toLocaleString("vi-VN")}đ ·{" "}
+                        {new Date(order.createdAt).toLocaleString("vi-VN")}
+                      </p>
+                      {impact && (
+                        <p className="mt-1 flex items-center gap-1 text-sm font-medium text-primary">
+                          <Leaf className="size-3.5" />+{impact.pointsEarned} điểm Net Zero
+                          {impact.co2SavedKg > 0 && ` · -${impact.co2SavedKg.toFixed(1)}kg CO2`}
+                        </p>
+                      )}
+                    </div>
+                    <Badge variant="secondary">{STATUS_LABEL[order.status]}</Badge>
+                  </CardHeader>
+                  <CardFooter className="justify-end gap-1 text-sm font-medium text-muted-foreground">
+                    Xem chi tiết đơn hàng
+                    <ChevronRight className="size-4" />
+                  </CardFooter>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

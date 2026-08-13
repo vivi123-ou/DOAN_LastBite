@@ -138,6 +138,28 @@ export async function getImpactForOrder(
   return { pointsEarned: data.points_earned, co2SavedKg: data.co2_saved_kg };
 }
 
+// Batched variant of getImpactForOrder() for a whole order list
+// (orders/page.tsx) — one query for every order on the page instead of one
+// per card, same pattern as order.repository.ts's listStatusHistoryForOrders().
+export async function getImpactForOrders(
+  client: SupabaseClient<Database>,
+  orderIds: string[]
+): Promise<Map<string, { pointsEarned: number; co2SavedKg: number }>> {
+  if (orderIds.length === 0) return new Map();
+  const { data, error } = await client
+    .from("net_zero_ledger")
+    .select("order_id, points_earned, co2_saved_kg")
+    .in("order_id", orderIds);
+  if (error) throw error;
+
+  const byOrder = new Map<string, { pointsEarned: number; co2SavedKg: number }>();
+  for (const row of data) {
+    if (row.points_earned <= 0 && row.co2_saved_kg <= 0) continue;
+    byOrder.set(row.order_id, { pointsEarned: row.points_earned, co2SavedKg: row.co2_saved_kg });
+  }
+  return byOrder;
+}
+
 // Lazy expiry sweep — no cron/scheduled-job infrastructure exists in this
 // app (same accepted gap as the best-before lock and group-order deadline),
 // so this runs opportunistically at every point the balance is actually
