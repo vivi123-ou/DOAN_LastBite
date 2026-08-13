@@ -28,9 +28,11 @@ const SECTIONS: { key: SectionKey; title: string }[] = [
 export function ComboSections({
   recommendedCategoryId,
   categories,
+  viewerStoreId,
 }: {
   recommendedCategoryId?: string;
   categories: Category[];
+  viewerStoreId?: string;
 }) {
   const [locationState, setLocationState] = useState<"locating" | "ready" | "denied">("locating");
   const coordsRef = useRef<Coordinates | null>(null);
@@ -134,6 +136,7 @@ export function ComboSections({
               title={section.title}
               combos={[]}
               emptyMessage="Mua vài đơn nữa để LastBite hiểu khẩu vị của bạn và gợi ý combo phù hợp nhé!"
+              viewerStoreId={viewerStoreId}
             />
           );
         }
@@ -150,7 +153,14 @@ export function ComboSections({
           );
         }
 
-        return <ComboCarousel key={section.key} title={section.title} combos={combos} />;
+        return (
+          <ComboCarousel
+            key={section.key}
+            title={section.title}
+            combos={combos}
+            viewerStoreId={viewerStoreId}
+          />
+        );
       })}
 
       {categories.map((cat) => {
@@ -164,7 +174,9 @@ export function ComboSections({
           );
         }
         if (combos.length === 0) return null; // no dead shelf for an empty category
-        return <ComboCarousel key={cat.id} title={cat.name} combos={combos} />;
+        return (
+          <ComboCarousel key={cat.id} title={cat.name} combos={combos} viewerStoreId={viewerStoreId} />
+        );
       })}
     </div>
   );

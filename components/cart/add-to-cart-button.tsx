@@ -26,13 +26,22 @@ interface AddToCartButtonProps {
   // (so the bulk discount actually applies) is the whole point of that
   // entry point.
   groupOrderId?: string;
+  // True when the viewer's own store owns this combo. combos/[id]/page.tsx
+  // already gates this server-side (isBuyable hides the button entirely for
+  // isOwnStore), but every card grid (ComboCard — homepage carousels,
+  // search results) renders this button directly with no equivalent check,
+  // so it was silently adding a store owner's own combo to their own cart.
+  // createOrderAction already rejects this at checkout time regardless
+  // (defense-in-depth, cart/actions.ts), but that's a confusing place to
+  // first find out — this stops it right at the click instead.
+  isOwnStore?: boolean;
 }
 
 // A cart only ever holds one store's items (see cart-context.tsx). This is
 // the one place that decides what happens on conflict — prompts to clear
 // the existing cart rather than silently mixing stores or silently
 // refusing the add.
-export function AddToCartButton({ item, disabled, groupOrderId }: AddToCartButtonProps) {
+export function AddToCartButton({ item, disabled, groupOrderId, isOwnStore }: AddToCartButtonProps) {
   const cart = useCart();
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -48,6 +57,10 @@ export function AddToCartButton({ item, disabled, groupOrderId }: AddToCartButto
   }
 
   function handleAdd() {
+    if (isOwnStore) {
+      toast.error("Đây là combo của cửa hàng bạn — không thể tự mua.");
+      return;
+    }
     if (cart.storeId && cart.storeId !== item.storeId) {
       setConfirmOpen(true);
       return;

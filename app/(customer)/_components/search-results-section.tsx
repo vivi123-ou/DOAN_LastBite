@@ -27,7 +27,13 @@ type Status = "locating" | "loading" | "ready" | "denied" | "error";
 // combo-carousel.tsx's rows) — a repeated "Kết quả tìm kiếm" badge on every
 // card read as clutter once there's already a heading saying the same
 // thing once.
-export function SearchResultsSection({ categoryName }: { categoryName?: string }) {
+export function SearchResultsSection({
+  categoryName,
+  viewerStoreId,
+}: {
+  categoryName?: string;
+  viewerStoreId?: string;
+}) {
   const searchParams = useSearchParams();
   const categoryId = searchParams.get("categoryId");
   const query = searchParams.get("q");
@@ -109,7 +115,7 @@ export function SearchResultsSection({ categoryName }: { categoryName?: string }
         <p className="py-8 text-sm text-destructive">Không tải được danh sách combo, thử lại sau.</p>
       )}
 
-      {status === "ready" && <ComboList combos={combos} />}
+      {status === "ready" && <ComboList combos={combos} viewerStoreId={viewerStoreId} />}
     </div>
   );
 }
