@@ -55,7 +55,9 @@ export default async function OrderDetailPage({
   // completion — same "missing table/row degrades gracefully" resilience
   // exception as reviews/status history above. Only meaningful for a paid
   // order, so the lookup is skipped entirely otherwise.
-  const netZeroImpact = isPaid ? await getImpactForOrder(supabase, order.id).catch(() => null) : null;
+  const netZeroImpact = isPaid
+    ? await getImpactForOrder(supabase, order.id, order.totalAmount).catch(() => null)
+    : null;
   let qrDataUrl: string | null = null;
   if (isPaid && order.fulfillmentType === "pickup" && order.qrCodeToken) {
     // Generated server-side, only after payments.status = 'success' — see

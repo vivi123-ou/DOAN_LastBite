@@ -48,7 +48,7 @@ export default async function OrdersPage({
   // the whole order list.
   const netZeroByOrder = await getImpactForOrders(
     supabase,
-    orders.map((o) => o.id)
+    orders.map((o) => ({ id: o.id, totalAmount: o.totalAmount }))
   ).catch(() => new Map());
   const activeTab = TABS.find((t) => t.key === tab) ?? TABS[0];
   const filteredOrders = activeTab.statuses

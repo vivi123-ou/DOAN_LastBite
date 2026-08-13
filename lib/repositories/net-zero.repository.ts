@@ -124,9 +124,23 @@ export async function recordOrderImpact(
 // when no ledger row exists at all yet (unpaid order, or markPaid()'s
 // best-effort recordOrderImpact() failed) — callers treat both the same:
 // don't show the earned-impact block.
+//
+// orderTotalAmount is required, not optional: net_zero_ledger.order_id is a
+// NOT NULL FK, so a manually-seeded balance (e.g. the demo 180,000-point
+// balance set directly on Minh Vân's account for testing the
+// points-covers-order checkout path — see CLAUDE.md) still has to point
+// *some* real order_id to satisfy the constraint, even though it isn't
+// genuinely that order's own earned impact. Live-caught bug: that seed row
+// was reused as "this order earned 180,000 points" on a 118,000đ order.
+// calculatePointsEarned() is a pure function of the amount, so a genuine
+// recordOrderImpact() row for this order is *always* exactly
+// calculatePointsEarned(orderTotalAmount) — an exact discriminator, not a
+// heuristic — so any row that doesn't match is treated as unrelated to this
+// order and skipped, same as no row existing at all.
 export async function getImpactForOrder(
   client: SupabaseClient<Database>,
-  orderId: string
+  orderId: string,
+  orderTotalAmount: number
 ): Promise<{ pointsEarned: number; co2SavedKg: number } | null> {
   const { data, error } = await client
     .from("net_zero_ledger")
@@ -134,26 +148,35 @@ export async function getImpactForOrder(
     .eq("order_id", orderId)
     .maybeSingle();
   if (error) throw error;
-  if (!data || (data.points_earned <= 0 && data.co2_saved_kg <= 0)) return null;
+  if (!data) return null;
+  if (data.points_earned !== calculatePointsEarned(orderTotalAmount)) return null;
+  if (data.points_earned <= 0 && data.co2_saved_kg <= 0) return null;
   return { pointsEarned: data.points_earned, co2SavedKg: data.co2_saved_kg };
 }
 
 // Batched variant of getImpactForOrder() for a whole order list
 // (orders/page.tsx) — one query for every order on the page instead of one
 // per card, same pattern as order.repository.ts's listStatusHistoryForOrders().
+// Takes {id, totalAmount} pairs rather than bare ids for the same
+// exact-match validation getImpactForOrder() does — see its comment.
 export async function getImpactForOrders(
   client: SupabaseClient<Database>,
-  orderIds: string[]
+  orders: { id: string; totalAmount: number }[]
 ): Promise<Map<string, { pointsEarned: number; co2SavedKg: number }>> {
-  if (orderIds.length === 0) return new Map();
+  if (orders.length === 0) return new Map();
   const { data, error } = await client
     .from("net_zero_ledger")
     .select("order_id, points_earned, co2_saved_kg")
-    .in("order_id", orderIds);
+    .in(
+      "order_id",
+      orders.map((o) => o.id)
+    );
   if (error) throw error;
 
+  const expectedPointsByOrder = new Map(orders.map((o) => [o.id, calculatePointsEarned(o.totalAmount)]));
   const byOrder = new Map<string, { pointsEarned: number; co2SavedKg: number }>();
   for (const row of data) {
+    if (row.points_earned !== expectedPointsByOrder.get(row.order_id)) continue;
     if (row.points_earned <= 0 && row.co2_saved_kg <= 0) continue;
     byOrder.set(row.order_id, { pointsEarned: row.points_earned, co2SavedKg: row.co2_saved_kg });
   }
