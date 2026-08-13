@@ -122,14 +122,25 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground overflow-x-hidden;
-  }
-  html {
+    @apply bg-background text-foreground;
     /* Belt-and-suspenders against sideways page scroll — a mispositioned
        fixed-position overlay (mini-cart's earlier flyout panel, before it
        was switched to an anchored dropdown) was able to widen the page and
        let it drag sideways. The dropdown rewrite removes the actual cause,
-       this just makes sure nothing else can reintroduce the same symptom. */
-    @apply overflow-x-hidden font-sans;
+       this just makes sure nothing else can reintroduce the same symptom.
+       `clip`, not `hidden`: `overflow-x: hidden` on html/body is a classic
+       CSS trap — setting *any* non-`visible` overflow value on html/body
+       makes that element establish its own scroll container, which changes
+       what `position: sticky` descendants (site-header.tsx) stick relative
+       to and broke the header staying pinned while scrolling, reported
+       live right after this was added. `clip` still prevents the content
+       from rendering outside the box (no visible horizontal scroll) without
+       turning html/body into a scroll container, so sticky positioning
+       keeps working against the real viewport. */
+    overflow-x: clip;
+  }
+  html {
+    @apply font-sans;
+    overflow-x: clip;
   }
 }

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Search, UserPlus, Check, X, MessageCircle } from "lucide-react";
+import { Search, UserPlus, Check, X, MessageCircle, UserMinus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,6 +12,7 @@ import {
   searchUsersAction,
   sendFriendRequestAction,
   respondFriendRequestAction,
+  removeFriendshipAction,
 } from "@/app/(customer)/friends/actions";
 import type { FriendSummary, PublicProfile } from "@/lib/domain/social";
 
@@ -55,6 +56,21 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
     try {
       await respondFriendRequestAction(friendshipId, accept);
       toast.success(accept ? "Đã trở thành bạn bè." : "Đã từ chối lời mời.");
+      router.refresh();
+    } catch {
+      toast.error("Có lỗi xảy ra, thử lại sau.");
+    }
+  }
+
+  // Shared by "Huỷ lời mời" (still pending) and "Huỷ kết bạn" (accepted) —
+  // the latter also clears the chat thread (messages cascade off the
+  // deleted friendships row, 0010), so it gets a confirm prompt; cancelling
+  // a not-yet-accepted request has nothing to lose, no prompt needed.
+  async function handleRemove(friendshipId: string, confirmMessage?: string) {
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
+    try {
+      await removeFriendshipAction(friendshipId);
+      toast.success("Đã cập nhật.");
       router.refresh();
     } catch {
       toast.error("Có lỗi xảy ra, thử lại sau.");
@@ -141,10 +157,10 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
         ) : (
           <ul className="space-y-2">
             {accepted.map((f) => (
-              <li key={f.friendshipId}>
+              <li key={f.friendshipId} className="flex items-center gap-2">
                 <Link
                   href={`/friends/${f.friendshipId}`}
-                  className="flex items-center justify-between gap-3 rounded-md border p-3 hover:border-primary"
+                  className="flex flex-1 items-center justify-between gap-3 rounded-md border p-3 hover:border-primary"
                 >
                   <div className="flex items-center gap-3">
                     <Avatar>
@@ -155,6 +171,21 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
                   </div>
                   <MessageCircle className="size-4 text-muted-foreground" />
                 </Link>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label="Huỷ kết bạn"
+                  onClick={() =>
+                    handleRemove(
+                      f.friendshipId,
+                      `Huỷ kết bạn với ${f.fullName ?? "người này"}? Toàn bộ tin nhắn giữa hai bạn sẽ bị xoá.`
+                    )
+                  }
+                >
+                  <UserMinus className="size-4" />
+                </Button>
               </li>
             ))}
           </ul>
@@ -174,7 +205,17 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
                   </Avatar>
                   <span className="text-sm font-medium">{f.fullName ?? "Người dùng LastBite"}</span>
                 </div>
-                <span className="text-xs text-muted-foreground">Đang chờ</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Đang chờ</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleRemove(f.friendshipId)}
+                  >
+                    Huỷ lời mời
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>

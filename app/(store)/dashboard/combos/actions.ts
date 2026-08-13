@@ -4,13 +4,14 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { createComboSchema } from "@/lib/validation/combo.schema";
+import { parseOrThrow } from "@/lib/validation/parse";
 import { getCategoryById } from "@/lib/repositories/category.repository";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
 import { ComboBuilder } from "@/lib/factories/combo.builder";
 import * as comboRepository from "@/lib/repositories/combo.repository";
 
 async function buildComboForCurrentStore(input: unknown) {
-  const parsed = createComboSchema.parse(input);
+  const parsed = parseOrThrow(createComboSchema, input);
 
   const supabase = await createClient();
   const userId = await getCurrentUserId(supabase);

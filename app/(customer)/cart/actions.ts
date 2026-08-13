@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { checkoutSchema } from "@/lib/validation/order.schema";
+import { parseOrThrow } from "@/lib/validation/parse";
 import { getSnapshotsByIds } from "@/lib/repositories/combo.repository";
 import { getOwnerIdById } from "@/lib/repositories/store.repository";
 import { getSummary } from "@/lib/repositories/net-zero.repository";
@@ -16,7 +17,7 @@ import * as orderRepository from "@/lib/repositories/order.repository";
 // .claude/rules/database-and-schema.md. The regular client is only used to
 // resolve who's currently signed in.
 export async function createOrderAction(input: unknown): Promise<{ orderId: string }> {
-  const parsed = checkoutSchema.parse(input);
+  const parsed = parseOrThrow(checkoutSchema, input);
 
   const supabase = await createClient();
   const userId = await getCurrentUserId(supabase);

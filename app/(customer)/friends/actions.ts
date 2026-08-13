@@ -7,6 +7,7 @@ import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById as getProfileById } from "@/lib/repositories/profile.repository";
 import {
   getFriendshipBetween,
+  remove as removeFriendship,
   respondToRequest,
   searchUsers,
   sendRequest,
@@ -51,6 +52,20 @@ export async function sendFriendRequestAction(addresseeId: string) {
     payload: { requesterId: userId },
   }).catch(() => {});
 
+  revalidatePath("/friends");
+}
+
+// One action covers both "huỷ lời mời đã gửi" (cancel a still-pending
+// outgoing request) and "huỷ kết bạn" (unfriend an accepted friendship) —
+// friendships_delete_own RLS (0018) already scopes this to rows the caller
+// is a party to, regardless of status, same as respondFriendRequestAction
+// doesn't need a separate ownership check either.
+export async function removeFriendshipAction(friendshipId: string) {
+  const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) throw new Error("Bạn cần đăng nhập.");
+
+  await removeFriendship(supabase, friendshipId);
   revalidatePath("/friends");
 }
 

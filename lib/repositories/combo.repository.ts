@@ -13,6 +13,19 @@ import { computeStockBasedDecayPrice } from "@/lib/pricing/strategies/stock-base
 
 type ComboRow = Database["public"]["Tables"]["combos"]["Row"];
 
+// The un-filtered default search radius — used whenever a caller doesn't
+// pass an explicit radiusM (the homepage's default "Gần bạn nhất"/per-
+// category shelves, and a category tile click, which only ever sets
+// categoryId, never radiusM). Was 5000 (5km); bumped to 10km after a live
+// bug report — a real, verified, in-stock combo ~6.8km from the browsing
+// location was invisible everywhere *except* after manually widening the
+// filter panel's radius chip to 10km, which is a confusing "my own combo
+// doesn't show up" experience for a store owner testing their own listing.
+// 10km covers a realistic same-city delivery/pickup range without needing
+// that manual step for the common case; the filter panel's radius chips
+// (site-search-filters.tsx) can still narrow it down to 1/3/5km.
+const DEFAULT_RADIUS_M = 10000;
+
 // Paginated, store-scoped listing for the map's store detail panel
 // (store-detail-panel.tsx) — "kéo tới đâu hiển thị tới đó" (load-as-you-
 // scroll, not the whole store's catalog at once). Two queries rather than
@@ -86,7 +99,7 @@ export async function listNearby(
   client: SupabaseClient<Database>,
   lat: number,
   lng: number,
-  radiusM = 5000,
+  radiusM = DEFAULT_RADIUS_M,
   maxResults = 20,
   categoryId?: string
 ): Promise<NearbyCombo[]> {
@@ -140,7 +153,7 @@ export async function search(
     in_lat: lat,
     in_lng: lng,
     in_query: options.query ?? null,
-    radius_m: options.radiusM ?? 5000,
+    radius_m: options.radiusM ?? DEFAULT_RADIUS_M,
     max_results: options.maxResults ?? 30,
     in_category_id: options.categoryId ?? null,
     min_price: options.minPrice ?? null,

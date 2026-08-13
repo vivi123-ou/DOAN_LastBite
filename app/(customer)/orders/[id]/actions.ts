@@ -7,6 +7,7 @@ import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById, markPaid } from "@/lib/repositories/order.repository";
 import { create as createReview } from "@/lib/repositories/review.repository";
 import { createReviewSchema } from "@/lib/validation/review.schema";
+import { parseOrThrow } from "@/lib/validation/parse";
 
 // STAND-IN for the real VNPay/Momo IPN webhook handler (Phase 2 payment
 // gateway wiring, deferred — see .claude/plans and CLAUDE.md §4). When the
@@ -40,7 +41,7 @@ export async function simulatePaymentAction(
 // (order ownership + status === 'completed') is re-checked inside
 // review.repository.ts's create(), not trusted from the form.
 export async function submitReviewAction(input: unknown) {
-  const parsed = createReviewSchema.parse(input);
+  const parsed = parseOrThrow(createReviewSchema, input);
 
   const supabase = await createClient();
   const userId = await getCurrentUserId(supabase);

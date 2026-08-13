@@ -74,7 +74,7 @@ export default async function HomePage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Khám phá theo loại combo</h2>
+        <h2 className="text-xl font-bold sm:text-2xl">Khám phá theo loại combo</h2>
         <CategoryRail categories={categories} activeCategoryId={categoryId} />
       </section>
 

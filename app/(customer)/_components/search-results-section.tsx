@@ -89,7 +89,7 @@ export function SearchResultsSection({ categoryName }: { categoryName?: string }
 
   return (
     <div className="space-y-3">
-      <h2 className="text-lg font-semibold">{heading}</h2>
+      <h2 className="text-xl font-bold sm:text-2xl">{heading}</h2>
 
       {(status === "locating" || status === "loading") && (
         <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground">

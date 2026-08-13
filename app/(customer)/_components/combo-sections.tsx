@@ -144,7 +144,7 @@ export function ComboSections({
           // carousel's own empty-state text doesn't flash during the fetch.
           return (
             <section key={section.key} className="space-y-3">
-              <h2 className="text-lg font-semibold">{section.title}</h2>
+              <h2 className="text-xl font-bold sm:text-2xl">{section.title}</h2>
               <p className="py-6 text-sm text-muted-foreground">Đang tải...</p>
             </section>
           );
@@ -158,7 +158,7 @@ export function ComboSections({
         if (combos === undefined) {
           return (
             <section key={cat.id} className="space-y-3">
-              <h2 className="text-lg font-semibold">{cat.name}</h2>
+              <h2 className="text-xl font-bold sm:text-2xl">{cat.name}</h2>
               <p className="py-6 text-sm text-muted-foreground">Đang tải...</p>
             </section>
           );

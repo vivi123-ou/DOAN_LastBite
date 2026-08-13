@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById as getFriendship } from "@/lib/repositories/friend.repository";
 import { getById as getProfileById } from "@/lib/repositories/profile.repository";
@@ -24,8 +25,11 @@ export default async function FriendChatPage({
   if (!friendship) notFound();
 
   const otherId = friendship.requester_id === userId ? friendship.addressee_id : friendship.requester_id;
+  // Admin client for the other party's profile specifically — same RLS gap
+  // (and same fix) as friend.repository.ts's listFriendships(). Everything
+  // else here is a same-actor read, regular client is correct for those.
   const [otherProfile, messages, stores] = await Promise.all([
-    getProfileById(supabase, otherId),
+    getProfileById(createAdminClient(), otherId),
     listForFriendship(supabase, friendshipId),
     listVerified(supabase),
   ]);

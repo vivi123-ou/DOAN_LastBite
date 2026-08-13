@@ -6,7 +6,10 @@ import { getLocationsByIds } from "@/lib/repositories/store.repository";
 export async function GET(request: NextRequest) {
   const lat = Number(request.nextUrl.searchParams.get("lat"));
   const lng = Number(request.nextUrl.searchParams.get("lng"));
-  const radiusM = Number(request.nextUrl.searchParams.get("radiusM") ?? 5000);
+  // Kept in sync with combo.repository.ts's DEFAULT_RADIUS_M — this route
+  // stringifies the param before listNearby() ever sees its own default,
+  // so the fallback has to live here too.
+  const radiusM = Number(request.nextUrl.searchParams.get("radiusM") ?? 10000);
   const categoryId = request.nextUrl.searchParams.get("categoryId") ?? undefined;
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
