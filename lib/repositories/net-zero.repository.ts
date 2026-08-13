@@ -115,6 +115,29 @@ export async function recordOrderImpact(
   return { pointsEarned, co2SavedKg };
 }
 
+// Display-only — how many points/kg CO2 *this specific order* earned, for
+// orders/[id]/page.tsx's receipt. Regular client is fine (net_zero_ledger's
+// own select-own RLS, 0001, already scopes it to the caller's own rows) —
+// same read-only posture as getSummary()/getNextExpiry(). Returns null both
+// when the order genuinely earned nothing (pointsEarned/co2SavedKg both 0 —
+// shouldn't happen for a real paid order, but not an error either way) and
+// when no ledger row exists at all yet (unpaid order, or markPaid()'s
+// best-effort recordOrderImpact() failed) — callers treat both the same:
+// don't show the earned-impact block.
+export async function getImpactForOrder(
+  client: SupabaseClient<Database>,
+  orderId: string
+): Promise<{ pointsEarned: number; co2SavedKg: number } | null> {
+  const { data, error } = await client
+    .from("net_zero_ledger")
+    .select("points_earned, co2_saved_kg")
+    .eq("order_id", orderId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || (data.points_earned <= 0 && data.co2_saved_kg <= 0)) return null;
+  return { pointsEarned: data.points_earned, co2SavedKg: data.co2_saved_kg };
+}
+
 // Lazy expiry sweep — no cron/scheduled-job infrastructure exists in this
 // app (same accepted gap as the best-before lock and group-order deadline),
 // so this runs opportunistically at every point the balance is actually

@@ -3,6 +3,7 @@ import type { Database } from "@/types/database.types";
 import type { Order, OrderStatus, OrderStatusEvent, StoreMonthlyStats } from "@/lib/domain/order";
 import type { BuiltOrder } from "@/lib/factories/order.builder";
 import { adjustBalance, recordOrderImpact } from "@/lib/repositories/net-zero.repository";
+import { create as createNotification } from "@/lib/repositories/notification.repository";
 
 type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
 
@@ -203,6 +204,25 @@ export async function updateStatus(
   id: string,
   status: OrderStatus
 ): Promise<void> {
+  // Defense-in-depth, same spirit as re-validating stock/price at checkout:
+  // nothing on the client stops a store owner from clicking through every
+  // "next step" button without the customer ever having actually paid
+  // (order-status-actions.tsx has no payment awareness at all) — that left
+  // an order sitting as 'completed' with payment_status still 'unpaid',
+  // which then confusingly still showed the VNPay/Momo picker on an
+  // already-"finished" order. A completed order must have been paid.
+  if (status === "completed") {
+    const { data: existing, error: fetchError } = await client
+      .from("orders")
+      .select("payment_status")
+      .eq("id", id)
+      .single();
+    if (fetchError) throw fetchError;
+    if (existing.payment_status !== "success") {
+      throw new Error("Đơn hàng chưa thanh toán — không thể đánh dấu hoàn tất.");
+    }
+  }
+
   const { error } = await client.from("orders").update({ status }).eq("id", id);
   if (error) throw error;
 
@@ -317,7 +337,28 @@ export async function markPaid(
 
   // Best-effort: a Net Zero ledger/points hiccup shouldn't fail the
   // payment itself — the order is genuinely paid regardless.
-  await recordOrderImpact(adminClient, orderId, order.customer_id, order.total_amount).catch(() => {});
+  const impact = await recordOrderImpact(
+    adminClient,
+    orderId,
+    order.customer_id,
+    order.total_amount
+  ).catch(() => null);
+
+  // Surface what was actually credited — previously this ran silently, so
+  // a customer had no way to know points/CO2 were even earned, or how
+  // much, short of digging into /account/net-zero themselves.
+  if (impact && (impact.pointsEarned > 0 || impact.co2SavedKg > 0)) {
+    const parts: string[] = [];
+    if (impact.pointsEarned > 0) parts.push(`+${impact.pointsEarned} điểm Net Zero`);
+    if (impact.co2SavedKg > 0) parts.push(`giảm ${impact.co2SavedKg.toFixed(1)}kg CO2`);
+    await createNotification(adminClient, {
+      userId: order.customer_id,
+      type: "net_zero_earned",
+      title: "Bạn vừa tích luỹ Net Zero!",
+      body: `Đơn hàng này giúp bạn ${parts.join(" và ")}. Xem chi tiết ở trang Điểm Net Zero.`,
+      payload: { orderId },
+    }).catch(() => {});
+  }
 }
 
 export async function getStoreMonthlyStats(

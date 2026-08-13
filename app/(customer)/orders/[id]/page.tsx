@@ -1,10 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { toDataURL } from "qrcode";
-import { CheckCircle2, Download } from "lucide-react";
+import { CheckCircle2, Download, Leaf } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById, listStatusHistory } from "@/lib/repositories/order.repository";
 import { listForOrder } from "@/lib/repositories/review.repository";
+import { getImpactForOrder } from "@/lib/repositories/net-zero.repository";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { OrderStatusTimeline } from "@/components/order/order-status-timeline";
@@ -48,6 +49,13 @@ export default async function OrderDetailPage({
   const statusHistory = await listStatusHistory(supabase, order.id).catch(() => []);
 
   const isPaid = order.paymentStatus === "success";
+
+  // Net Zero impact (points earned + kg CO2 saved) is credited at payment
+  // success time (order.repository.ts's markPaid()), not at fulfillment
+  // completion — same "missing table/row degrades gracefully" resilience
+  // exception as reviews/status history above. Only meaningful for a paid
+  // order, so the lookup is skipped entirely otherwise.
+  const netZeroImpact = isPaid ? await getImpactForOrder(supabase, order.id).catch(() => null) : null;
   let qrDataUrl: string | null = null;
   if (isPaid && order.fulfillmentType === "pickup" && order.qrCodeToken) {
     // Generated server-side, only after payments.status = 'success' — see
@@ -139,6 +147,27 @@ export default async function OrderDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {netZeroImpact && (
+        <div className="flex items-start gap-2.5 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
+          <Leaf className="size-5 shrink-0" />
+          <span>
+            Đơn hàng này giúp bạn tích thêm{" "}
+            <strong>{netZeroImpact.pointsEarned} điểm Net Zero</strong>
+            {netZeroImpact.co2SavedKg > 0 && (
+              <>
+                {" "}
+                và giảm <strong>{netZeroImpact.co2SavedKg.toFixed(1)}kg CO2</strong>
+              </>
+            )}
+            . Xem tổng điểm ở trang{" "}
+            <a href="/account/net-zero" className="underline">
+              Điểm Net Zero
+            </a>
+            .
+          </span>
+        </div>
+      )}
 
       {statusHistory.length > 0 && (
         <Card>

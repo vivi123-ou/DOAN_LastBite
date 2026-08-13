@@ -101,7 +101,11 @@ export default async function StoreOrdersPage({
                 <Badge variant="secondary">{STATUS_LABEL[order.status]}</Badge>
               </CardHeader>
               <CardContent className="space-y-3">
-                <OrderStatusActions orderId={order.id} status={order.status} />
+                <OrderStatusActions
+                  orderId={order.id}
+                  status={order.status}
+                  isPaid={order.paymentStatus === "success"}
+                />
                 <OrderStatusHistoryToggle events={statusHistoryByOrder.get(order.id) ?? []} />
               </CardContent>
             </Card>
