@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   sendMessageAction,
   createGroupOrderInviteAction,
+  markThreadReadAction,
 } from "@/app/(customer)/friends/[friendshipId]/actions";
 import { GroupOrderInviteCard } from "@/app/(customer)/friends/[friendshipId]/_components/group-order-invite-card";
 import type { Message } from "@/lib/domain/social";
@@ -130,6 +131,13 @@ export function ChatView({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Marks this thread read the moment it's actually opened, so /friends'
+  // unread badge for it clears on the next visit there — best-effort, a
+  // failed mark-read shouldn't block viewing the chat itself.
+  useEffect(() => {
+    markThreadReadAction(friendshipId).catch(() => {});
+  }, [friendshipId]);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();

@@ -20,7 +20,16 @@ function initialOf(name: string | null) {
   return (name?.trim()?.[0] ?? "?").toUpperCase();
 }
 
-export function FriendsView({ initialFriendships }: { initialFriendships: FriendSummary[] }) {
+export function FriendsView({
+  initialFriendships,
+  unreadCounts,
+}: {
+  initialFriendships: FriendSummary[];
+  // Plain object, not a Map — Server Components can only pass RSC-serializable
+  // props across the boundary; friends/page.tsx converts the Map from
+  // getUnreadCounts() with Object.fromEntries() before handing it down.
+  unreadCounts: Record<string, number>;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicProfile[] | null>(null);
@@ -181,7 +190,9 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
           </p>
         ) : (
           <ul className="space-y-2">
-            {accepted.map((f) => (
+            {accepted.map((f) => {
+              const unread = unreadCounts[f.friendshipId] ?? 0;
+              return (
               <li key={f.friendshipId} className="flex items-center gap-2">
                 <Link
                   href={`/friends/${f.friendshipId}`}
@@ -192,9 +203,18 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
                       {f.avatarUrl && <AvatarImage src={f.avatarUrl} alt="" />}
                       <AvatarFallback>{initialOf(f.fullName)}</AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">{f.fullName ?? "Người dùng LastBite"}</span>
+                    <span className={`text-sm ${unread > 0 ? "font-semibold" : "font-medium"}`}>
+                      {f.fullName ?? "Người dùng LastBite"}
+                    </span>
                   </div>
-                  <MessageCircle className="size-4 text-muted-foreground" />
+                  <div className="relative">
+                    <MessageCircle className="size-4 text-muted-foreground" />
+                    {unread > 0 && (
+                      <span className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">
+                        {unread > 9 ? "9+" : unread}
+                      </span>
+                    )}
+                  </div>
                 </Link>
                 <Button
                   type="button"
@@ -212,7 +232,8 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
                   <UserMinus className="size-4" />
                 </Button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>

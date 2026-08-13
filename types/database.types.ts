@@ -208,6 +208,19 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["messages"]["Row"]>;
         Relationships: [];
       };
+      friendship_reads: {
+        Row: {
+          friendship_id: string;
+          user_id: string;
+          last_read_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["friendship_reads"]["Row"]> & {
+          friendship_id: string;
+          user_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["friendship_reads"]["Row"]>;
+        Relationships: [];
+      };
       group_orders: {
         Row: {
           id: string;
@@ -500,6 +513,13 @@ export interface Database {
           user_id: string;
           full_name: string | null;
           avatar_url: string | null;
+        }[];
+      };
+      unread_message_counts: {
+        Args: Record<string, never>;
+        Returns: {
+          friendship_id: string;
+          unread_count: number;
         }[];
       };
     };

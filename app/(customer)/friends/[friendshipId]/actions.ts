@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById as getFriendship } from "@/lib/repositories/friend.repository";
 import { getById as getProfileById } from "@/lib/repositories/profile.repository";
-import { send as sendMessage } from "@/lib/repositories/message.repository";
+import { send as sendMessage, markRead } from "@/lib/repositories/message.repository";
 import { create as createNotification } from "@/lib/repositories/notification.repository";
 import { getSnapshotsByIds } from "@/lib/repositories/combo.repository";
 import * as groupBuy from "@/lib/repositories/group-buy.repository";
@@ -22,6 +22,14 @@ async function requireParty(friendshipId: string) {
 
   const otherId = friendship.requester_id === userId ? friendship.addressee_id : friendship.requester_id;
   return { supabase, userId, friendship, otherId };
+}
+
+// Called once from chat-view.tsx on mount (a real event — the chat was
+// actually opened — not a page-render side effect), so /friends' unread
+// badge for this thread clears the next time that list is loaded.
+export async function markThreadReadAction(friendshipId: string) {
+  const { supabase, userId } = await requireParty(friendshipId);
+  await markRead(supabase, friendshipId, userId);
 }
 
 export async function sendMessageAction(friendshipId: string, body: string) {

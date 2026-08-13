@@ -18,7 +18,13 @@ function targetHref(n: Notification): string | null {
   if ((n.type === "friend_request" || n.type === "friend_accepted") ) {
     return "/friends";
   }
-  if (n.type === "message" && typeof payload.conversationId === "string") {
+  if (
+    (n.type === "message" || n.type === "group_buy_invite") &&
+    typeof payload.conversationId === "string"
+  ) {
+    // Both land on the same 1:1 thread — a group-buy invite is itself
+    // delivered as a message in that thread (see createGroupOrderInviteAction),
+    // so there's nowhere more specific to send someone than the chat itself.
     return `/friends/${payload.conversationId}`;
   }
   return null;
