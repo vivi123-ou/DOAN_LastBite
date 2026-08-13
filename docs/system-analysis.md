@@ -420,6 +420,83 @@ Có 2 cơ chế lọc/tìm khác hẳn nhau về bản chất thuật toán, dù
 
 → Tóm lại: **bản đồ dùng lại đúng cơ chế KNN + GiST ở §8.2a để tìm cửa hàng gần**, chỉ khác ở bước hiển thị (gom theo cửa hàng thành ghim) và có thêm 1 lớp phân trang riêng khi xem chi tiết 1 cửa hàng cụ thể. Nếu vẽ sequence diagram, đây nên là **1 nhánh dùng lại participant `nearby_combos()` đã vẽ ở luồng tìm theo vị trí**, không phải 1 hộp thoại "Map Search Engine" riêng biệt.
 
+### 8.4. Luồng dữ liệu chi tiết của `/map` — ranh giới Trình duyệt (Client) ↔ Server (Vercel) ↔ Database (Supabase)
+
+Điểm quan trọng nhất cần làm rõ khi trình bày: **`app/(customer)/map/page.tsx` là 1 Client Component chạy hoàn toàn trong trình duyệt** (`"use client"` ở dòng đầu file) — khác với phần lớn trang khác trong app vốn là Server Component render sẵn trên server. Lý do bắt buộc: `navigator.geolocation` — API lấy GPS — **chỉ tồn tại trong trình duyệt**, Next.js Server Component chạy trên Node.js không có API này. Vì vậy toàn bộ trang bản đồ phải "lùi" xuống chạy client-side, kéo theo việc gọi API qua `fetch()` thay vì fetch trực tiếp trong component như các trang Server Component khác.
+
+**Luồng đầy đủ, đánh số theo đúng thứ tự thực thi, kèm nơi chạy (Trình duyệt/Server/DB):**
+
+```
+① [TRÌNH DUYỆT]  MapPage mount (app/(customer)/map/page.tsx)
+     useEffect(() => { ... }, [])  — chạy đúng 1 lần khi vào trang, state ban đầu = "locating"
+     │
+     ▼
+② [TRÌNH DUYỆT]  getCurrentPosition()  (lib/geo/geolocation.ts)
+     gọi navigator.geolocation.getCurrentPosition(...)
+     → trình duyệt tự bật popup xin quyền định vị (nếu chưa cấp) → trả về {lat, lng} thật của máy người dùng
+     KHÔNG có request mạng nào ở bước này — đây thuần là API của trình duyệt/hệ điều hành
+     │
+     ▼
+③ [TRÌNH DUYỆT]  setCenter(coords), setStatus("loading")
+     re-render, hiện "Đang tải bản đồ cửa hàng gần bạn..."
+     │
+     ▼
+④ [TRÌNH DUYỆT → SERVER]  fetch(`/api/combos/nearby?lat=...&lng=...`)
+     Đây chính là "nơi gọi API thực hiện" chị hỏi — 1 lệnh fetch() HTTP bình thường,
+     y hệt gọi 1 API bên ngoài, dù route đó nằm trong cùng project
+     │
+     ▼
+⑤ [SERVER — Vercel]  app/api/combos/nearby/route.ts  (Route Handler, hàm GET)
+     đọc lat/lng/radiusM/categoryId từ query string
+     tạo Supabase client theo session (lib/supabase/server.ts)
+     │
+     ▼
+⑥ [SERVER]  combo.repository.ts → listNearby(client, lat, lng, radiusM, maxResults, categoryId)
+     gọi supabase.rpc("nearby_combos", {...})   ← lệnh gọi hàm SQL, qua mạng tới Supabase
+     │
+     ▼
+⑦ [DATABASE — Supabase/Postgres]  chạy hàm nearby_combos() (xem §8.2a)
+     KNN qua GiST index + ST_DWithin + tính dynamic_combo_price() cho từng dòng (§8.1)
+     trả về danh sách rows
+     │
+     ▼
+⑥' [SERVER]  route.ts gọi tiếp store.repository.ts → getLocationsByIds(client, storeIds)
+     1 query .from("stores").select("id, lat, lng").in("id", ...) — LẤY TOẠ ĐỘ THÔ để vẽ ghim
+     (khác với nearby_combos() vốn chỉ trả distance_m, không trả lat/lng riêng lẻ)
+     │
+     ▼
+⑤' [SERVER]  route.ts trả về NextResponse.json({ combos, storeLocations })
+     │
+     ▼
+④' [TRÌNH DUYỆT]  MapPage nhận JSON, setCombos(...), setStoreLocations(...), setStatus("ready")
+     │
+     ▼
+⑧ [TRÌNH DUYỆT]  <MapView combos={...} storeLocations={...} center={...} />
+     useMemo() GOM combos theo storeId thành từng nhóm StoreGroup (1 cửa hàng = 1 ghim)
+     react-leaflet vẽ <Marker> cho từng nhóm lên nền tile OpenStreetMap
+     │
+     ▼
+⑨ [TRÌNH DUYỆT]  Người dùng bấm vào 1 ghim
+     onClick → setSelectedStoreId(storeId) → <StoreDetailPanel storeId={...} /> mount
+     │
+     ▼
+⑩ [TRÌNH DUYỆT → SERVER → DATABASE]  StoreDetailPanel tự chạy LẠI 1 vòng fetch() độc lập:
+     GET /api/stores/[id]         → store.repository.ts getById()
+     GET /api/stores/[id]/combos  → combo.repository.ts listActiveByStorePaginated() (trang đầu, 10 combo)
+     (2 request này KHÔNG liên quan tới nearby_combos() nữa — là 1 luồng dữ liệu hoàn toàn riêng,
+      chỉ tái sử dụng storeId đã có từ bước ⑨)
+```
+
+**Tóm gọn ranh giới thực thi (điều hay bị hỏi nhất khi bảo vệ):**
+| Việc | Chạy ở đâu | Vì sao |
+|---|---|---|
+| Lấy toạ độ GPS người dùng | **Trình duyệt** (`navigator.geolocation`) | API này không tồn tại trên server/Node.js |
+| Gọi hàm `nearby_combos()`, tính giá động | **Server** (Route Handler) → **Database** (Postgres RPC) | Bảo mật: Supabase client phía server mới có quyền đọc/ghi đúng theo RLS + không lộ logic query cho trình duyệt |
+| Vẽ bản đồ, gom nhóm ghim theo cửa hàng | **Trình duyệt** (React state + Leaflet) | Thuần hiển thị, không cần dữ liệu nhạy cảm |
+| Toạ độ cửa hàng để vẽ ghim | **Server** trả kèm trong cùng response (`getLocationsByIds`) | Tránh trình duyệt phải tự gọi thêm 1 API riêng cho từng cửa hàng |
+
+**Vì sao không để Server Component tự fetch sẵn dữ liệu rồi truyền xuống (giống trang chủ)?** Vì tại thời điểm Server Component render (trên server, trước khi trang được gửi về trình duyệt), server **hoàn toàn không biết vị trí GPS thật của người dùng** — GPS chỉ có được sau khi trình duyệt đã tải trang và tự hỏi hệ điều hành. Đây là lý do bắt buộc toàn bộ luồng phải là "trình duyệt tự khởi động việc gọi API" (client-initiated fetch) thay vì "server chuẩn bị sẵn dữ liệu" (server-side render) — khác biệt cốt lõi so với đa số trang còn lại trong app.
+
 ---
 
 ## 9. Ghi chú thiết kế quan trọng cần giữ khi vẽ sơ đồ (để không vẽ sai bản chất)
