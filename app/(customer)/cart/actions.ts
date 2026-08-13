@@ -7,7 +7,7 @@ import { checkoutSchema } from "@/lib/validation/order.schema";
 import { parseOrThrow } from "@/lib/validation/parse";
 import { getSnapshotsByIds } from "@/lib/repositories/combo.repository";
 import { getOwnerIdById } from "@/lib/repositories/store.repository";
-import { getSummary } from "@/lib/repositories/net-zero.repository";
+import { getSummary, sweepExpiredPoints } from "@/lib/repositories/net-zero.repository";
 import { resolveCheckoutDiscount } from "@/lib/repositories/group-buy.repository";
 import { OrderBuilder } from "@/lib/factories/order.builder";
 import * as orderRepository from "@/lib/repositories/order.repository";
@@ -34,6 +34,10 @@ export async function createOrderAction(input: unknown): Promise<{ orderId: stri
   if (storeOwnerId === userId) {
     throw new Error("Bạn không thể tự đặt hàng từ cửa hàng của chính mình.");
   }
+
+  // Must complete before getSummary() below reads the balance — otherwise
+  // an already-expired-but-not-yet-swept batch could still be redeemed.
+  await sweepExpiredPoints(admin, userId);
 
   const comboIds = parsed.items.map((i) => i.comboId);
   const [snapshots, netZero, groupDiscount] = await Promise.all([

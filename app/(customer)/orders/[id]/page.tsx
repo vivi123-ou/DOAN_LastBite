@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { toDataURL } from "qrcode";
+import { CheckCircle2, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById } from "@/lib/repositories/order.repository";
@@ -47,18 +48,45 @@ export default async function OrderDetailPage({
     qrDataUrl = await toDataURL(order.qrCodeToken, { width: 240 });
   }
 
+  const orderCode = order.id.slice(0, 8).toUpperCase();
+  // Not shown once the order is over (completed/rejected/cancelled) — "đã
+  // gửi đến cửa hàng" stops being the relevant framing by then, the status
+  // badge already tells that part of the story.
+  const showSentBanner = !["completed", "rejected", "cancelled"].includes(order.status);
+
+  // discountAmount on the order is the *combined* bulk + Net Zero discount
+  // (order.builder.ts applies bulk first, then points on what's left) — the
+  // breakdown shown here re-derives each half from bulk_discount_pct /
+  // net_zero_points_used rather than needing two separate stored columns,
+  // same "compute for display, don't store twice" spirit as the dynamic
+  // pricing strategy elsewhere in this app.
+  const bulkDiscountAmount = Math.round((order.subtotal * order.bulkDiscountPct) / 100);
+  const netZeroDiscountAmount = order.discountAmount - bulkDiscountAmount;
+
   return (
     <div className="mx-auto max-w-xl space-y-6 px-4 py-8">
+      {showSentBanner && (
+        <div className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
+          <CheckCircle2 className="size-5 shrink-0" />
+          <span>Đặt hàng thành công! Đơn hàng của bạn đã được gửi đến cửa hàng.</span>
+        </div>
+      )}
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{order.storeName}</h1>
+          <p className="text-sm font-mono text-muted-foreground">Mã đơn hàng: #{orderCode}</p>
           <p className="text-sm text-muted-foreground">
-            Đơn #{order.id.slice(0, 8)} · {new Date(order.createdAt).toLocaleString("vi-VN")}
+            {new Date(order.createdAt).toLocaleString("vi-VN")}
           </p>
         </div>
         <Badge variant="secondary">{STATUS_LABEL[order.status]}</Badge>
       </div>
 
+      {/* Biên lai — real item lines + a real price breakdown, not just a
+          single total, so a bulk-discount (group-buy) or Net Zero
+          redemption is actually visible on the order that used it, not
+          just silently folded into one number. */}
       <Card>
         <CardContent className="space-y-3 p-4">
           {order.items.map((item) => (
@@ -79,9 +107,28 @@ export default async function OrderDetailPage({
               )}
             </div>
           ))}
-          <div className="flex justify-between border-t pt-2 font-semibold">
-            <span>Tổng cộng</span>
-            <span className="text-primary">{order.totalAmount.toLocaleString("vi-VN")}đ</span>
+
+          <div className="space-y-1.5 border-t pt-2 text-sm">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Tạm tính</span>
+              <span>{order.subtotal.toLocaleString("vi-VN")}đ</span>
+            </div>
+            {bulkDiscountAmount > 0 && (
+              <div className="flex justify-between text-primary">
+                <span>Giảm giá mua chung (-{order.bulkDiscountPct}%)</span>
+                <span>-{bulkDiscountAmount.toLocaleString("vi-VN")}đ</span>
+              </div>
+            )}
+            {netZeroDiscountAmount > 0 && (
+              <div className="flex justify-between text-primary">
+                <span>Điểm Net Zero (-{order.netZeroPointsUsed} điểm)</span>
+                <span>-{netZeroDiscountAmount.toLocaleString("vi-VN")}đ</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t pt-1.5 text-base font-semibold">
+              <span>Tổng cộng</span>
+              <span className="text-primary">{order.totalAmount.toLocaleString("vi-VN")}đ</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -99,10 +146,21 @@ export default async function OrderDetailPage({
       {!isPaid && <SimulatePaymentButton orderId={order.id} />}
 
       {isPaid && order.fulfillmentType === "pickup" && qrDataUrl && (
-        <div className="flex flex-col items-center gap-2 rounded-md border p-6">
+        <div className="flex flex-col items-center gap-3 rounded-md border p-6">
           <p className="text-sm text-muted-foreground">Đưa mã này cho cửa hàng khi đến lấy</p>
           {/* eslint-disable-next-line @next/next/no-img-element -- server-generated data URI, next/image doesn't apply */}
           <img src={qrDataUrl} alt="Mã QR nhận hàng" className="size-60" />
+          {/* A data: URI download works with a plain <a download> — no
+              upload/storage round trip needed, the image is already fully
+              client-side. */}
+          <a
+            href={qrDataUrl}
+            download={`lastbite-qr-${orderCode}.png`}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+          >
+            <Download className="size-4" />
+            Lưu ảnh QR về máy
+          </a>
         </div>
       )}
 

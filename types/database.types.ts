@@ -413,6 +413,8 @@ export interface Database {
           user_id: string;
           order_id: string;
           co2_saved_kg: number;
+          points_earned: number;
+          swept_at: string | null;
           computed_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["net_zero_ledger"]["Row"]> & {

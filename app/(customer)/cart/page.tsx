@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
-import { getSummary } from "@/lib/repositories/net-zero.repository";
+import { getSummary, sweepExpiredPoints } from "@/lib/repositories/net-zero.repository";
 import { getInvite } from "@/lib/repositories/group-buy.repository";
 import { CartView } from "@/app/(customer)/cart/_components/cart-view";
 
@@ -13,6 +13,10 @@ export default async function CartPage({
   const { groupOrderId } = await searchParams;
   const supabase = await createClient();
   const userId = await getCurrentUserId(supabase);
+  // Sweep expired points first (admin client) so the balance offered here
+  // — and auto-applied by default, see cart-view.tsx — never includes
+  // points that should already be expired.
+  if (userId) await sweepExpiredPoints(createAdminClient(), userId);
   const netZeroPointsBalance = userId ? (await getSummary(supabase, userId)).pointsBalance : 0;
   // Display-only — cart/actions.ts's createOrderAction re-resolves the
   // actual discount fresh at submit time regardless, never trusts this.

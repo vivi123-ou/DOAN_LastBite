@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Leaf } from "lucide-react";
+import { Leaf, PackageSearch } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getById } from "@/lib/repositories/profile.repository";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,20 @@ export async function SiteHeader() {
           <MiniCart />
           {userId && profile ? (
             <>
+              {/* "Kiểm tra đơn hàng" — inbook.vn reference has this as a
+                  standalone header link straight to order tracking. /orders
+                  already exists (phase 2) and already shows status per
+                  order; this was just missing a direct entry point from the
+                  header, so people had to go through Menu → "Đơn hàng của
+                  tôi" instead. */}
+              <Link
+                href="/orders"
+                aria-label="Kiểm tra đơn hàng"
+                title="Kiểm tra đơn hàng"
+                className="flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <PackageSearch className="size-5" />
+              </Link>
               <NotificationBell userId={userId} />
               <UserMenu
                 fullName={profile.fullName}

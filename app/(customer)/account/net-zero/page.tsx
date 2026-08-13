@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
-import { Leaf, Sparkles } from "lucide-react";
+import { Leaf, Sparkles, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
-import { getSummary } from "@/lib/repositories/net-zero.repository";
+import { getNextExpiry, getSummary, sweepExpiredPoints } from "@/lib/repositories/net-zero.repository";
 import { Card, CardContent } from "@/components/ui/card";
 import { VND_PER_POINT } from "@/lib/pricing/net-zero/net-zero.policy";
 
@@ -17,7 +18,17 @@ export default async function NetZeroPage() {
   const userId = await getCurrentUserId(supabase);
   if (!userId) redirect("/login?next=/account/net-zero");
 
-  const { pointsBalance, totalCo2SavedKg } = await getSummary(supabase, userId);
+  // Sweep first (admin client — deducting from the balance is a money-
+  // adjacent write, same posture as every other points mutation) so the
+  // balance shown below never includes already-expired points, and the
+  // next-expiry date below never reports a batch that just expired.
+  const admin = createAdminClient();
+  await sweepExpiredPoints(admin, userId);
+
+  const [{ pointsBalance, totalCo2SavedKg }, nextExpiry] = await Promise.all([
+    getSummary(supabase, userId),
+    getNextExpiry(supabase, userId),
+  ]);
   const vndValue = pointsBalance * VND_PER_POINT;
 
   return (
@@ -48,8 +59,25 @@ export default async function NetZeroPage() {
             Tích điểm: cứ mỗi <strong className="text-foreground">1.000đ</strong> chi tiêu (sau khi
             thanh toán thành công) bạn nhận <strong className="text-foreground">1 điểm</strong>.
           </p>
+          <p>
+            Điểm có hạn sử dụng <strong className="text-foreground">1 năm</strong> kể từ ngày tích —
+            điểm chưa dùng sẽ tự hết hạn sau đó.
+          </p>
         </CardContent>
       </Card>
+
+      {nextExpiry && (
+        <div className="flex items-center gap-2.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+          <Clock className="size-4 shrink-0" />
+          <span>
+            <strong>{nextExpiry.points.toLocaleString("vi-VN")} điểm</strong> sẽ hết hạn vào tháng{" "}
+            <strong>
+              {new Date(nextExpiry.date).getMonth() + 1}/{new Date(nextExpiry.date).getFullYear()}
+            </strong>{" "}
+            — nhớ dùng trước khi hết hạn nhé!
+          </span>
+        </div>
+      )}
 
       <Card>
         <CardContent className="flex items-center gap-4 p-4">

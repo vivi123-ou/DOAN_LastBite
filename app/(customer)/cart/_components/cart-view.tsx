@@ -41,7 +41,12 @@ export function CartView({
   const [addressLine, setAddressLine] = useState("");
   const [coords, setCoords] = useState<Coordinates | null>(null);
   const [locating, setLocating] = useState(false);
-  const [pointsToApply, setPointsToApply] = useState(0);
+  // null = "tự động dùng tối đa" (the default — per explicit feedback,
+  // Net Zero points should apply optimally without the customer having to
+  // remember to click "Dùng tối đa" themselves). A number means the
+  // customer manually typed a smaller amount, which sticks until they
+  // clear the field or press "Dùng tối đa" again.
+  const [manualPoints, setManualPoints] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,17 +64,29 @@ export function CartView({
   const canDeliver = cart.items.every((i) => i.deliverySupported);
   const effectiveType = fulfillmentType === "pickup" && !canPickup ? "delivery" : fulfillmentType;
 
+  // Bulk-discount (group-buy) — display-only here, computed the same way
+  // cart/actions.ts's createOrderAction resolves it fresh server-side at
+  // submit time (group-buy.repository.ts's resolveCheckoutDiscount()), so
+  // what's shown here matches what's actually charged.
+  const bulkDiscountPct = groupOrderInvite?.currentTier?.discountPct ?? 0;
+  const bulkDiscountAmount = Math.round((cart.subtotal * bulkDiscountPct) / 100);
+  const subtotalAfterBulkDiscount = cart.subtotal - bulkDiscountAmount;
+
   const maxRedeemablePoints = Math.min(
     netZeroPointsBalance,
-    Math.floor(cart.subtotal / VND_PER_POINT)
+    Math.floor(subtotalAfterBulkDiscount / VND_PER_POINT)
   );
-  const clampedPoints = Math.min(pointsToApply, maxRedeemablePoints);
+  const clampedPoints = Math.min(manualPoints ?? maxRedeemablePoints, maxRedeemablePoints);
   const pointsDiscount = calculateRedemptionValue(clampedPoints);
-  const total = cart.subtotal - pointsDiscount;
+  const total = subtotalAfterBulkDiscount - pointsDiscount;
 
   function handlePointsInput(value: string) {
+    if (value === "") {
+      setManualPoints(0);
+      return;
+    }
     const n = Math.max(0, Math.floor(Number(value) || 0));
-    setPointsToApply(Math.min(n, maxRedeemablePoints));
+    setManualPoints(Math.min(n, maxRedeemablePoints));
   }
 
   async function handleLocate() {
@@ -210,7 +227,7 @@ export function CartView({
                         type="number"
                         min={0}
                         max={maxRedeemablePoints}
-                        value={pointsToApply || ""}
+                        value={clampedPoints}
                         onChange={(e) => handlePointsInput(e.target.value)}
                         placeholder="0"
                         className="w-24"
@@ -219,15 +236,17 @@ export function CartView({
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setPointsToApply(maxRedeemablePoints)}
+                        onClick={() => setManualPoints(null)}
+                        disabled={manualPoints === null}
                       >
                         Dùng tối đa
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Bạn có <strong>{netZeroPointsBalance.toLocaleString("vi-VN")}</strong> điểm khả
-                      dụng ({(netZeroPointsBalance * VND_PER_POINT).toLocaleString("vi-VN")}đ) — 1 điểm
-                      Net Zero = {VND_PER_POINT.toLocaleString("vi-VN")}đ.
+                      Tự động áp dụng số điểm tối ưu nhất — bạn có{" "}
+                      <strong>{netZeroPointsBalance.toLocaleString("vi-VN")}</strong> điểm khả dụng (
+                      {(netZeroPointsBalance * VND_PER_POINT).toLocaleString("vi-VN")}đ) — 1 điểm Net
+                      Zero = {VND_PER_POINT.toLocaleString("vi-VN")}đ.
                     </p>
                   </>
                 )}
@@ -239,6 +258,12 @@ export function CartView({
                 <span className="text-muted-foreground">Tạm tính</span>
                 <span>{cart.subtotal.toLocaleString("vi-VN")}đ</span>
               </div>
+              {bulkDiscountAmount > 0 && (
+                <div className="flex items-center justify-between text-primary">
+                  <span>Giảm giá mua chung (-{bulkDiscountPct}%)</span>
+                  <span>-{bulkDiscountAmount.toLocaleString("vi-VN")}đ</span>
+                </div>
+              )}
               {pointsDiscount > 0 && (
                 <div className="flex items-center justify-between text-primary">
                   <span>Giảm giá (điểm Net Zero)</span>
