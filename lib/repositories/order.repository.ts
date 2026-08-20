@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.types";
+import type { Database, Json } from "@/types/database.types";
 import type { Order, OrderStatus, OrderStatusEvent, StoreMonthlyStats } from "@/lib/domain/order";
 import type { BuiltOrder } from "@/lib/factories/order.builder";
 import { adjustBalance, recordOrderImpact } from "@/lib/repositories/net-zero.repository";
@@ -299,28 +299,49 @@ async function restoreStock(client: SupabaseClient<Database>, orderId: string): 
   }
 }
 
-// Stand-in for the real VNPay/Momo IPN webhook handler — see
-// app/(customer)/orders/[id]/actions.ts. Admin client: payments has zero
-// client-facing policies (.claude/rules/database-and-schema.md).
+// Called from two places now: simulatePaymentAction() (VNPay tile — still
+// symbolic, no sandbox credentials available yet) and the real MoMo IPN
+// webhook (app/api/payments/momo/ipn/route.ts). Admin client: payments has
+// zero client-facing policies (.claude/rules/database-and-schema.md).
+//
+// `providerTxnId`/`rawResponse` are optional so the demo VNPay path can keep
+// its old `SIMULATED-...` placeholder while the real MoMo webhook passes the
+// gateway's actual transaction id and raw payload — the `payments` row
+// should honestly reflect which of the two actually happened.
 export async function markPaid(
   adminClient: SupabaseClient<Database>,
   orderId: string,
-  method: "vnpay" | "momo"
+  method: "vnpay" | "momo",
+  providerTxnId?: string,
+  rawResponse?: Record<string, unknown>
 ): Promise<void> {
   const { data: order, error: orderError } = await adminClient
     .from("orders")
-    .select("customer_id, total_amount, fulfillment_type")
+    .select("customer_id, total_amount, fulfillment_type, payment_status")
     .eq("id", orderId)
     .single();
   if (orderError) throw orderError;
 
+  // Idempotency guard: a real payment gateway's IPN can legitimately fire
+  // more than once for the same transaction (retry-on-timeout is standard
+  // gateway behavior) — without this, a duplicate call would insert a
+  // second `payments` row and double-credit Net Zero points via
+  // recordOrderImpact() below. simulatePaymentAction() already had its own
+  // check before calling this; this makes the guarantee live inside
+  // markPaid() itself so every caller gets it for free.
+  if (order.payment_status === "success") return;
+
   const { error: paymentError } = await adminClient.from("payments").insert({
     order_id: orderId,
     provider: method,
-    provider_txn_id: `SIMULATED-${Date.now()}`,
+    provider_txn_id: providerTxnId ?? `SIMULATED-${Date.now()}`,
     amount: order.total_amount,
     status: "success",
-    raw_response: { simulated: true },
+    // Callers always pass a plain JSON-serializable object (the demo
+    // placeholder, or MoMo's own IPN payload) — Record<string, unknown>
+    // isn't structurally a Json subtype, so this is an intentional, safe-
+    // in-practice cast, same posture as notification.repository.ts's create().
+    raw_response: (rawResponse as Json | undefined) ?? { simulated: true },
     ipn_received_at: new Date().toISOString(),
   });
   if (paymentError) throw paymentError;

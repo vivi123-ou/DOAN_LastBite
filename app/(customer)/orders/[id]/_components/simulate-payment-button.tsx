@@ -4,7 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { simulatePaymentAction } from "@/app/(customer)/orders/[id]/actions";
+import {
+  simulatePaymentAction,
+  initiateMomoPaymentAction,
+} from "@/app/(customer)/orders/[id]/actions";
 
 type PaymentMethod = "vnpay" | "momo";
 
@@ -13,20 +16,29 @@ const METHODS: { id: PaymentMethod; label: string; className: string }[] = [
   { id: "momo", label: "MoMo", className: "bg-[#a50064] text-white" },
 ];
 
-// Symbolic VNPay/Momo checkout — no real gateway is wired up yet (see
-// CLAUDE.md §7 "Next steps"). Picking a tile and confirming just calls the
-// same simulatePaymentAction() the old single "giả lập thanh toán" button
-// did; swapping in the real gateways later means adding a webhook route
-// that calls order.repository.ts's markPaid() the same way, nothing else
-// in this component changes.
+// VNPay stays symbolic (no sandbox merchant credentials available yet —
+// see CLAUDE.md). MoMo is wired to a real (sandbox) payment now — MoMo
+// publishes a standing test partner in its public docs, no registration
+// wait required, so it was the one that could actually be finished; see
+// lib/payments/momo.ts. Picking VNPay still just calls the old
+// simulatePaymentAction(); picking MoMo now calls initiateMomoPaymentAction()
+// and redirects the whole page to MoMo's real hosted checkout — the order
+// only actually gets marked paid once MoMo's IPN webhook confirms it
+// (app/api/payments/momo/ipn/route.ts), not just because the browser came
+// back to this page.
 export function SimulatePaymentButton({ orderId }: { orderId: string }) {
   const router = useRouter();
-  const [method, setMethod] = useState<PaymentMethod>("vnpay");
+  const [method, setMethod] = useState<PaymentMethod>("momo");
   const [loading, setLoading] = useState(false);
 
   async function handleClick() {
     setLoading(true);
     try {
+      if (method === "momo") {
+        const { payUrl } = await initiateMomoPaymentAction(orderId);
+        window.location.href = payUrl;
+        return;
+      }
       await simulatePaymentAction(orderId, method);
       toast.success("Đã xác nhận thanh toán (giả lập).");
       router.refresh();
@@ -37,11 +49,14 @@ export function SimulatePaymentButton({ orderId }: { orderId: string }) {
     }
   }
 
+  const selected = METHODS.find((m) => m.id === method)!;
+
   return (
     <div className="space-y-3 rounded-md border border-dashed p-4">
       <p className="text-sm text-muted-foreground">
-        Thanh toán online qua VNPay/Momo chưa được kết nối thật ở bản demo này. Chọn cổng thanh
-        toán rồi xác nhận để giả lập thanh toán thành công.
+        {method === "momo"
+          ? "Thanh toán qua MoMo (môi trường thử nghiệm — sandbox, chưa phải giao dịch thật). Bạn sẽ được chuyển sang trang MoMo thật để hoàn tất."
+          : "VNPay chưa được kết nối thật ở bản demo này. Chọn cổng khác hoặc xác nhận để giả lập thanh toán thành công."}
       </p>
       <div className="grid grid-cols-2 gap-2">
         {METHODS.map((m) => (
@@ -58,7 +73,7 @@ export function SimulatePaymentButton({ orderId }: { orderId: string }) {
         ))}
       </div>
       <Button onClick={handleClick} disabled={loading} className="w-full">
-        {loading ? "Đang xử lý..." : `Thanh toán qua ${METHODS.find((m) => m.id === method)?.label}`}
+        {loading ? "Đang xử lý..." : `Thanh toán qua ${selected.label}`}
       </Button>
     </div>
   );
