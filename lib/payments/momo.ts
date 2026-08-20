@@ -6,20 +6,35 @@ import crypto from "node:crypto";
 // because MoMo publishes a standing, no-registration-required sandbox
 // merchant (test partner) in its public developer docs, meant exactly for
 // this kind of pre-production testing — VNPay (lib/payments/vnpay.ts) needed
-// the user's own sandbox signup first, done in a later round. These are NOT
-// secrets — they're MoMo's own published test values, safe to ship as
-// defaults; override via env vars once real production merchant credentials
-// exist (see .env.local.example).
-const PARTNER_CODE = process.env.MOMO_PARTNER_CODE ?? "MOMO";
-const ACCESS_KEY = process.env.MOMO_ACCESS_KEY ?? "F8BBA842ECF85";
-const SECRET_KEY = process.env.MOMO_SECRET_KEY ?? "K951B6PE1waDMi640xX08PD3vg6EkVlz";
+// the user's own sandbox signup first, done in a later round.
+//
+// No hardcoded fallback values, on purpose — even though MoMo's own test
+// partner credentials are publicly published (not actually secret), keeping
+// *any* credential-shaped string literal in source is worse practice than
+// requiring it from env, and reads as a red flag on inspection regardless of
+// the nuance. Set MOMO_PARTNER_CODE/MOMO_ACCESS_KEY/MOMO_SECRET_KEY in
+// .env.local (see .env.local.example) — same MoMo-published test values
+// work fine as the *value* you put there, they just don't live in the code
+// itself anymore.
+const PARTNER_CODE = process.env.MOMO_PARTNER_CODE;
+const ACCESS_KEY = process.env.MOMO_ACCESS_KEY;
+const SECRET_KEY = process.env.MOMO_SECRET_KEY;
 // Sandbox endpoint by default — swap to https://payment.momo.vn/v2/gateway/api/create
 // (via MOMO_ENDPOINT) only once real production credentials are configured.
 const CREATE_ENDPOINT =
   process.env.MOMO_ENDPOINT ?? "https://test-payment.momo.vn/v2/gateway/api/create";
 
-function hmacSha256(raw: string): string {
-  return crypto.createHmac("sha256", SECRET_KEY).update(raw).digest("hex");
+function requireConfig(): { partnerCode: string; accessKey: string; secretKey: string } {
+  if (!PARTNER_CODE || !ACCESS_KEY || !SECRET_KEY) {
+    throw new Error(
+      "Thiếu cấu hình MoMo — hãy đặt MOMO_PARTNER_CODE/MOMO_ACCESS_KEY/MOMO_SECRET_KEY trong .env.local (xem .env.local.example)."
+    );
+  }
+  return { partnerCode: PARTNER_CODE, accessKey: ACCESS_KEY, secretKey: SECRET_KEY };
+}
+
+function hmacSha256(secretKey: string, raw: string): string {
+  return crypto.createHmac("sha256", secretKey).update(raw).digest("hex");
 }
 
 export interface CreateMomoPaymentInput {
@@ -51,23 +66,24 @@ export interface CreateMomoPaymentResult {
 export async function createMomoPayment(
   input: CreateMomoPaymentInput
 ): Promise<CreateMomoPaymentResult> {
-  const momoOrderId = `${PARTNER_CODE}${Date.now()}`;
+  const { partnerCode, accessKey, secretKey } = requireConfig();
+  const momoOrderId = `${partnerCode}${Date.now()}`;
   const requestId = momoOrderId;
   const amount = String(Math.round(input.amount));
   const extraData = Buffer.from(input.orderId, "utf8").toString("base64");
   const requestType = "captureWallet";
 
   const rawSignature =
-    `accessKey=${ACCESS_KEY}&amount=${amount}&extraData=${extraData}` +
+    `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}` +
     `&ipnUrl=${input.ipnUrl}&orderId=${momoOrderId}&orderInfo=${input.orderInfo}` +
-    `&partnerCode=${PARTNER_CODE}&redirectUrl=${input.redirectUrl}` +
+    `&partnerCode=${partnerCode}&redirectUrl=${input.redirectUrl}` +
     `&requestId=${requestId}&requestType=${requestType}`;
 
   const res = await fetch(CREATE_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      partnerCode: PARTNER_CODE,
+      partnerCode,
       partnerName: "LastBite",
       storeId: "LastBiteStore",
       requestId,
@@ -79,7 +95,7 @@ export async function createMomoPayment(
       lang: "vi",
       requestType,
       extraData,
-      signature: hmacSha256(rawSignature),
+      signature: hmacSha256(secretKey, rawSignature),
     }),
   });
 
@@ -112,13 +128,14 @@ export interface MomoIpnPayload {
 // tab mid-flow and never actually pay). Field order/set is different from
 // the create-payment signature above — per MoMo's own IPN spec, not a typo.
 export function verifyMomoIpnSignature(payload: MomoIpnPayload): boolean {
+  const { accessKey, secretKey } = requireConfig();
   const rawSignature =
-    `accessKey=${ACCESS_KEY}&amount=${payload.amount}&extraData=${payload.extraData}` +
+    `accessKey=${accessKey}&amount=${payload.amount}&extraData=${payload.extraData}` +
     `&message=${payload.message}&orderId=${payload.orderId}&orderInfo=${payload.orderInfo}` +
     `&orderType=${payload.orderType}&partnerCode=${payload.partnerCode}&payType=${payload.payType}` +
     `&requestId=${payload.requestId}&responseTime=${payload.responseTime}` +
     `&resultCode=${payload.resultCode}&transId=${payload.transId}`;
-  const expected = hmacSha256(rawSignature);
+  const expected = hmacSha256(secretKey, rawSignature);
   // Constant-time compare — signature verification is a security boundary,
   // a plain === leaks timing information about how many leading bytes matched.
   const a = Buffer.from(expected, "hex");

@@ -62,9 +62,11 @@ nghiệp vụ bắt buộc.
 ## Thanh toán MoMo (sandbox)
 
 `/orders/[id]` → chọn MoMo → chuyển sang trang thanh toán **thật** của MoMo (môi trường sandbox
-của họ, chưa phải giao dịch tiền thật). Mặc định dùng luôn bộ merchant test công khai MoMo tự
-công bố (không cần đăng ký) — chỉ cần set `MOMO_PARTNER_CODE`/`MOMO_ACCESS_KEY`/`MOMO_SECRET_KEY`
-trong `.env.local` khi nào có tài khoản merchant thật của riêng bạn (xem `.env.local.example`).
+của họ, chưa phải giao dịch tiền thật). Bắt buộc phải set `MOMO_PARTNER_CODE`/`MOMO_ACCESS_KEY`/
+`MOMO_SECRET_KEY` trong `.env.local` — không có giá trị mặc định nào nằm sẵn trong code (kể cả
+lúc chạy demo/dev cũng phải tự set, xem `.env.local.example` để lấy đúng bộ merchant test công
+khai MoMo tự công bố, copy y nguyên vào là chạy được ngay, không cần đăng ký gì thêm). Khi nào có
+tài khoản merchant thật của riêng bạn thì thay 3 giá trị này bằng credentials thật.
 
 **Lưu ý khi test hết chu trình (kể cả bước MoMo tự gọi ngược về server xác nhận đã thanh
 toán — IPN):** `localhost` không phải là địa chỉ MoMo gọi tới được, nên nếu chỉ chạy
