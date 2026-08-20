@@ -1,19 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Leaf, MapPin, Minus, Plus, ShoppingCart, Trash2, Users } from "lucide-react";
+import { AlertTriangle, Leaf, MapPin, Minus, Plus, ShoppingCart, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCart } from "@/lib/cart/cart-context";
 import { getCurrentPosition, type Coordinates } from "@/lib/geo/geolocation";
-import { createOrderAction } from "@/app/(customer)/cart/actions";
+import { createOrderAction, getCartSnapshotsAction } from "@/app/(customer)/cart/actions";
 import { calculateRedemptionValue, VND_PER_POINT } from "@/lib/pricing/net-zero/net-zero.policy";
 import type { GroupOrderInvite } from "@/lib/domain/social";
+import type { CartItem } from "@/lib/domain/order";
+import type { ComboSnapshot } from "@/lib/domain/combo";
+
+// The cart itself is client-only localStorage (lib/cart/cart-context.tsx) —
+// it has no idea whether an item is still actually purchasable. Without
+// this, a customer could sit looking at a fully-stocked-looking cart while
+// every item in it had already expired/sold out, and only find out from a
+// generic rejection after clicking "Đặt hàng" (OrderBuilder re-validates,
+// but only at submit time). null = "no live data for this combo at all"
+// (deleted, or its store got deactivated/unverified since it was added —
+// combos_select_public RLS would just omit it from the snapshot response).
+function staleReasonFor(item: CartItem, snapshot: ComboSnapshot | undefined): string | null {
+  if (!snapshot) return "Combo không còn tồn tại";
+  if (snapshot.status !== "active") return "Đã ngừng bán";
+  if (new Date(snapshot.bestBefore) <= new Date()) return "Đã hết hạn";
+  if (snapshot.remainingStock <= 0) return "Đã hết hàng";
+  if (snapshot.remainingStock < item.quantity) return `Chỉ còn ${snapshot.remainingStock} phần`;
+  return null;
+}
 
 interface CartViewProps {
   isLoggedIn: boolean;
@@ -50,6 +69,31 @@ export function CartView({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Keyed off the *set* of combo ids, not the items array itself — quantity
+  // tweaks (updateQuantity) create a new array reference on every keystroke
+  // but never change which combos are in the cart, so re-fetching snapshots
+  // on every +/- click would be wasted round trips for no new information.
+  const comboIdsKey = useMemo(
+    () => [...new Set(cart.items.map((i) => i.comboId))].sort().join(","),
+    [cart.items]
+  );
+  const [snapshots, setSnapshots] = useState<Map<string, ComboSnapshot> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    // getCartSnapshotsAction([]) short-circuits to [] without a round trip —
+    // safe to call as-is when the cart is empty, keeps this effect's only
+    // setState call inside the fetch callback (not synchronous in the
+    // effect body), same pattern as chat-view.tsx's combo-fetch effect.
+    getCartSnapshotsAction(comboIdsKey ? comboIdsKey.split(",") : []).then((rows) => {
+      if (cancelled) return;
+      setSnapshots(new Map(rows.map((r) => [r.id, r])));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [comboIdsKey]);
+
   if (cart.items.length === 0) {
     return (
       <div className="py-16 text-center text-muted-foreground">
@@ -63,6 +107,13 @@ export function CartView({
   const canPickup = cart.items.every((i) => i.pickupSupported);
   const canDeliver = cart.items.every((i) => i.deliverySupported);
   const effectiveType = fulfillmentType === "pickup" && !canPickup ? "delivery" : fulfillmentType;
+
+  // snapshots === null means "still loading" — don't block checkout on an
+  // unconfirmed state, only once we actually know an item is stale.
+  const staleReasons =
+    snapshots &&
+    new Map(cart.items.map((item) => [item.comboId, staleReasonFor(item, snapshots.get(item.comboId))]));
+  const hasStaleItems = staleReasons ? [...staleReasons.values()].some((r) => r !== null) : false;
 
   // Bulk-discount (group-buy) — display-only here, computed the same way
   // cart/actions.ts's createOrderAction resolves it fresh server-side at
@@ -158,8 +209,13 @@ export function CartView({
           <CardTitle>{cart.storeName}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {cart.items.map((item) => (
-            <div key={item.comboId} className="flex items-center gap-4 rounded-md border p-4">
+          {cart.items.map((item) => {
+            const staleReason = staleReasons?.get(item.comboId) ?? null;
+            return (
+            <div
+              key={item.comboId}
+              className={`flex items-center gap-4 rounded-md border p-4 ${staleReason ? "border-destructive/40 bg-destructive/5" : ""}`}
+            >
               {item.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL
                 <img src={item.imageUrl} alt="" className="size-16 shrink-0 rounded-md border object-cover" />
@@ -171,6 +227,12 @@ export function CartView({
                 <p className="text-sm text-muted-foreground">
                   {item.unitPrice.toLocaleString("vi-VN")}đ / combo
                 </p>
+                {staleReason && (
+                  <p className="mt-1 flex items-center gap-1 text-xs font-medium text-destructive">
+                    <AlertTriangle className="size-3.5" />
+                    {staleReason} — vui lòng xoá khỏi giỏ hàng
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -200,7 +262,8 @@ export function CartView({
                 </Button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 
@@ -345,12 +408,19 @@ export function CartView({
                   </div>
                 )}
 
+                {hasStaleItems && (
+                  <p className="flex items-center gap-1.5 text-sm text-destructive">
+                    <AlertTriangle className="size-4 shrink-0" />
+                    Giỏ hàng có combo không còn khả dụng — xoá bớt để tiếp tục đặt hàng.
+                  </p>
+                )}
+
                 {error && <p className="text-sm text-destructive">{error}</p>}
 
                 <Button
                   className="w-full"
                   onClick={handleCheckout}
-                  disabled={submitting || (!canPickup && !canDeliver)}
+                  disabled={submitting || hasStaleItems || (!canPickup && !canDeliver)}
                 >
                   {submitting ? "Đang đặt hàng..." : "Đặt hàng"}
                 </Button>

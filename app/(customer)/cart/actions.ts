@@ -11,6 +11,21 @@ import { getSummary, sweepExpiredPoints } from "@/lib/repositories/net-zero.repo
 import { resolveCheckoutDiscount } from "@/lib/repositories/group-buy.repository";
 import { OrderBuilder } from "@/lib/factories/order.builder";
 import * as orderRepository from "@/lib/repositories/order.repository";
+import type { ComboSnapshot } from "@/lib/domain/combo";
+
+// Read-only, regular client — combos_select_public RLS (0001) already
+// permits this (price/stock/status/best_before aren't sensitive, the same
+// fields are already shown on public listing pages). Lets cart-view.tsx
+// warn about a stale cart item (expired, sold out, unlisted) *before* the
+// customer clicks "Đặt hàng" instead of only finding out from
+// OrderBuilder's rejection at actual submit time — the cart itself is
+// client-only localStorage (lib/cart/cart-context.tsx), so it has no way to
+// know on its own whether an item is still purchasable.
+export async function getCartSnapshotsAction(comboIds: string[]): Promise<ComboSnapshot[]> {
+  if (comboIds.length === 0) return [];
+  const supabase = await createClient();
+  return getSnapshotsByIds(supabase, comboIds);
+}
 
 // Order creation is a cross-actor write (checkout modifies the store's
 // combo stock) plus money-handling fields — runs entirely on the
