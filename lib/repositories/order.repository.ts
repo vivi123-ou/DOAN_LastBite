@@ -299,15 +299,18 @@ async function restoreStock(client: SupabaseClient<Database>, orderId: string): 
   }
 }
 
-// Called from two places now: simulatePaymentAction() (VNPay tile — still
-// symbolic, no sandbox credentials available yet) and the real MoMo IPN
-// webhook (app/api/payments/momo/ipn/route.ts). Admin client: payments has
-// zero client-facing policies (.claude/rules/database-and-schema.md).
+// Called from both real gateway IPN webhooks now — app/api/payments/momo/ipn/route.ts
+// and app/api/payments/vnpay/ipn/route.ts — and from cart/actions.ts's
+// createOrderAction for the zero-total (fully Net Zero points-covered) auto-
+// skip case, where there's genuinely no gateway involved at all. Admin
+// client: payments has zero client-facing policies
+// (.claude/rules/database-and-schema.md).
 //
-// `providerTxnId`/`rawResponse` are optional so the demo VNPay path can keep
-// its old `SIMULATED-...` placeholder while the real MoMo webhook passes the
-// gateway's actual transaction id and raw payload — the `payments` row
-// should honestly reflect which of the two actually happened.
+// `providerTxnId`/`rawResponse` are optional — the zero-total auto-skip path
+// has no real gateway transaction to report, so it falls back to the old
+// `SIMULATED-...` placeholder (accurately, since nothing was actually
+// charged); both real webhooks pass their gateway's actual transaction id
+// and raw payload, so the `payments` row honestly reflects what happened.
 export async function markPaid(
   adminClient: SupabaseClient<Database>,
   orderId: string,
@@ -326,9 +329,7 @@ export async function markPaid(
   // more than once for the same transaction (retry-on-timeout is standard
   // gateway behavior) — without this, a duplicate call would insert a
   // second `payments` row and double-credit Net Zero points via
-  // recordOrderImpact() below. simulatePaymentAction() already had its own
-  // check before calling this; this makes the guarantee live inside
-  // markPaid() itself so every caller gets it for free.
+  // recordOrderImpact() below.
   if (order.payment_status === "success") return;
 
   const { error: paymentError } = await adminClient.from("payments").insert({

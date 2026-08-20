@@ -73,7 +73,21 @@ báo thành công. Muốn test đầy đủ, cần 1 URL public trỏ về máy 
 `NEXT_PUBLIC_SITE_URL=https://<ngrok-domain>` trước khi chạy `npm run dev` — hoặc test trực tiếp
 trên bản đã deploy Vercel (đã có domain public sẵn).
 
-VNPay hiện vẫn là nút giả lập (chưa có tài khoản sandbox VNPay) — xem `CLAUDE.md` §7.
+## Thanh toán VNPay (sandbox)
+
+`/orders/[id]` → chọn VNPAY → chuyển sang trang thanh toán thật của VNPay (sandbox). Cần đăng ký
+merchant test tại `sandbox.vnpayment.vn` trước (miễn phí, tự động duyệt), rồi set
+`VNPAY_TMN_CODE`/`VNPAY_HASH_SECRET` trong `.env.local` (xem `.env.local.example`) — khác MoMo,
+VNPay không có sẵn bộ test công khai nên bắt buộc phải có credentials riêng mới chạy được.
+
+Thẻ test (ngân hàng NCB, do VNPay cấp kèm merchant):
+- Số thẻ: `9704198526191432198`
+- Tên chủ thẻ: `NGUYEN VAN A`
+- Ngày phát hành: `07/15`
+- Mật khẩu OTP: `123456`
+
+Cùng lưu ý về webhook (IPN) như MoMo ở trên — cần URL public thật (ngrok hoặc bản deploy Vercel),
+`localhost` thuần sẽ không nhận được xác nhận thanh toán.
 
 ## Deploy
 

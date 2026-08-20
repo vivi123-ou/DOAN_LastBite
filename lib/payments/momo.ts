@@ -1,14 +1,15 @@
 import crypto from "node:crypto";
 
 // MoMo "Payment Gateway" (captureWallet) integration — the real (sandbox)
-// counterpart to the previous simulatePaymentAction()/SimulatePaymentButton
-// demo flow. VNPay stays simulated for now (no sandbox credentials available
-// yet — see CLAUDE.md); MoMo is wired for real because MoMo publishes a
-// standing, no-registration-required sandbox merchant (test partner) in its
-// public developer docs, meant exactly for this kind of pre-production
-// testing. These are NOT secrets — they're MoMo's own published test values,
-// safe to ship as defaults; override via env vars once real production
-// merchant credentials exist (see .env.local.example).
+// counterpart to the old simulatePaymentAction()/SimulatePaymentButton demo
+// flow (retired once both gateways went real — see CLAUDE.md). Wired first
+// because MoMo publishes a standing, no-registration-required sandbox
+// merchant (test partner) in its public developer docs, meant exactly for
+// this kind of pre-production testing — VNPay (lib/payments/vnpay.ts) needed
+// the user's own sandbox signup first, done in a later round. These are NOT
+// secrets — they're MoMo's own published test values, safe to ship as
+// defaults; override via env vars once real production merchant credentials
+// exist (see .env.local.example).
 const PARTNER_CODE = process.env.MOMO_PARTNER_CODE ?? "MOMO";
 const ACCESS_KEY = process.env.MOMO_ACCESS_KEY ?? "F8BBA842ECF85";
 const SECRET_KEY = process.env.MOMO_SECRET_KEY ?? "K951B6PE1waDMi640xX08PD3vg6EkVlz";
