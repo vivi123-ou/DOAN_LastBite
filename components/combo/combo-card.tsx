@@ -21,6 +21,11 @@ function formatBestBefore(iso: string): string {
 
 interface ComboCardProps {
   combo: NearbyCombo;
+  // The viewer's own store id, if they have one — compared against
+  // combo.storeId to gate the "Thêm vào giỏ hàng" button (see
+  // add-to-cart-button.tsx's isOwnStore prop). Threaded down from
+  // page.tsx, since NearbyCombo carries no ownership info of its own.
+  viewerStoreId?: string;
 }
 
 // No contextual "which section is this from" badge on the card itself —
@@ -28,7 +33,7 @@ interface ComboCardProps {
 // redundant/buggy-looking wherever the card already sits under its own
 // section heading (carousel rows, the search-results list) — the heading
 // says it once, the card doesn't need to repeat it.
-export function ComboCard({ combo }: ComboCardProps) {
+export function ComboCard({ combo, viewerStoreId }: ComboCardProps) {
   const discountPct = Math.round(
     (1 - combo.currentPrice / Math.max(combo.originalPrice, 1)) * 100
   );
@@ -99,6 +104,7 @@ export function ComboCard({ combo }: ComboCardProps) {
             deliverySupported: combo.deliverySupported,
             pickupSupported: combo.pickupSupported,
           }}
+          isOwnStore={Boolean(viewerStoreId) && viewerStoreId === combo.storeId}
         />
       </div>
     </Card>

@@ -40,3 +40,14 @@ export interface UpdateStoreInput {
   bannerUrl?: string | null;
   phone?: string;
 }
+
+// bulk_discount_tiers (0001, dormant until the group-buy checkout round —
+// see bulk-discount.repository.ts). storeId null means a platform-wide
+// default tier, per .claude/rules/business-rules.md: "configurable per
+// store... with a platform-wide default when store_id is null."
+export interface BulkDiscountTier {
+  id: string;
+  storeId: string | null;
+  minQuantity: number;
+  discountPct: number;
+}

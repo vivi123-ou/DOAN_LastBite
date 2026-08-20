@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Search, UserPlus, Check, X, MessageCircle } from "lucide-react";
+import { Search, UserPlus, Check, X, MessageCircle, UserMinus, UserCheck, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,6 +12,7 @@ import {
   searchUsersAction,
   sendFriendRequestAction,
   respondFriendRequestAction,
+  removeFriendshipAction,
 } from "@/app/(customer)/friends/actions";
 import type { FriendSummary, PublicProfile } from "@/lib/domain/social";
 
@@ -19,7 +20,16 @@ function initialOf(name: string | null) {
   return (name?.trim()?.[0] ?? "?").toUpperCase();
 }
 
-export function FriendsView({ initialFriendships }: { initialFriendships: FriendSummary[] }) {
+export function FriendsView({
+  initialFriendships,
+  unreadCounts,
+}: {
+  initialFriendships: FriendSummary[];
+  // Plain object, not a Map — Server Components can only pass RSC-serializable
+  // props across the boundary; friends/page.tsx converts the Map from
+  // getUnreadCounts() with Object.fromEntries() before handing it down.
+  unreadCounts: Record<string, number>;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicProfile[] | null>(null);
@@ -28,6 +38,16 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
   const incoming = initialFriendships.filter((f) => f.isIncomingRequest);
   const accepted = initialFriendships.filter((f) => f.status === "accepted");
   const outgoing = initialFriendships.filter((f) => f.status === "pending" && !f.isIncomingRequest);
+
+  // search_profiles() (the RPC behind searchUsersAction) has no idea who
+  // the caller is already friends/pending with — it just matches on name —
+  // so a search result needs to be cross-referenced against the friendship
+  // list already loaded for this page, or someone you're already friends
+  // with (or already have a pending request with, either direction) keeps
+  // showing a live "Kết bạn" button that just errors ("Lời mời kết bạn đã
+  // tồn tại." / "Hai bạn đã là bạn bè.") when clicked instead of reflecting
+  // the real relationship.
+  const friendshipByUserId = new Map(initialFriendships.map((f) => [f.userId, f]));
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -61,6 +81,21 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
     }
   }
 
+  // Shared by "Huỷ lời mời" (still pending) and "Huỷ kết bạn" (accepted) —
+  // the latter also clears the chat thread (messages cascade off the
+  // deleted friendships row, 0010), so it gets a confirm prompt; cancelling
+  // a not-yet-accepted request has nothing to lose, no prompt needed.
+  async function handleRemove(friendshipId: string, confirmMessage?: string) {
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
+    try {
+      await removeFriendshipAction(friendshipId);
+      toast.success("Đã cập nhật.");
+      router.refresh();
+    } catch {
+      toast.error("Có lỗi xảy ra, thử lại sau.");
+    }
+  }
+
   return (
     <div className="space-y-8">
       <form onSubmit={handleSearch} className="flex gap-2">
@@ -85,21 +120,36 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
             <p className="text-sm text-muted-foreground">Không tìm thấy ai phù hợp.</p>
           ) : (
             <ul className="space-y-2">
-              {results.map((u) => (
-                <li key={u.userId} className="flex items-center justify-between gap-3 rounded-md border p-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      {u.avatarUrl && <AvatarImage src={u.avatarUrl} alt="" />}
-                      <AvatarFallback>{initialOf(u.fullName)}</AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm font-medium">{u.fullName ?? "Người dùng LastBite"}</span>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => handleAdd(u.userId)}>
-                    <UserPlus className="mr-1.5 size-4" />
-                    Kết bạn
-                  </Button>
-                </li>
-              ))}
+              {results.map((u) => {
+                const existing = friendshipByUserId.get(u.userId);
+                return (
+                  <li key={u.userId} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        {u.avatarUrl && <AvatarImage src={u.avatarUrl} alt="" />}
+                        <AvatarFallback>{initialOf(u.fullName)}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium">{u.fullName ?? "Người dùng LastBite"}</span>
+                    </div>
+                    {existing?.status === "accepted" ? (
+                      <span className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                        <UserCheck className="size-4" />
+                        Đã là bạn bè
+                      </span>
+                    ) : existing?.status === "pending" ? (
+                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Clock className="size-4" />
+                        {existing.isIncomingRequest ? "Đã gửi lời mời cho bạn" : "Đã gửi lời mời"}
+                      </span>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => handleAdd(u.userId)}>
+                        <UserPlus className="mr-1.5 size-4" />
+                        Kết bạn
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
@@ -140,23 +190,50 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
           </p>
         ) : (
           <ul className="space-y-2">
-            {accepted.map((f) => (
-              <li key={f.friendshipId}>
+            {accepted.map((f) => {
+              const unread = unreadCounts[f.friendshipId] ?? 0;
+              return (
+              <li key={f.friendshipId} className="flex items-center gap-2">
                 <Link
                   href={`/friends/${f.friendshipId}`}
-                  className="flex items-center justify-between gap-3 rounded-md border p-3 hover:border-primary"
+                  className="flex flex-1 items-center justify-between gap-3 rounded-md border p-3 hover:border-primary"
                 >
                   <div className="flex items-center gap-3">
                     <Avatar>
                       {f.avatarUrl && <AvatarImage src={f.avatarUrl} alt="" />}
                       <AvatarFallback>{initialOf(f.fullName)}</AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">{f.fullName ?? "Người dùng LastBite"}</span>
+                    <span className={`text-sm ${unread > 0 ? "font-semibold" : "font-medium"}`}>
+                      {f.fullName ?? "Người dùng LastBite"}
+                    </span>
                   </div>
-                  <MessageCircle className="size-4 text-muted-foreground" />
+                  <div className="relative">
+                    <MessageCircle className="size-4 text-muted-foreground" />
+                    {unread > 0 && (
+                      <span className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">
+                        {unread > 9 ? "9+" : unread}
+                      </span>
+                    )}
+                  </div>
                 </Link>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label="Huỷ kết bạn"
+                  onClick={() =>
+                    handleRemove(
+                      f.friendshipId,
+                      `Huỷ kết bạn với ${f.fullName ?? "người này"}? Toàn bộ tin nhắn giữa hai bạn sẽ bị xoá.`
+                    )
+                  }
+                >
+                  <UserMinus className="size-4" />
+                </Button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>
@@ -174,7 +251,17 @@ export function FriendsView({ initialFriendships }: { initialFriendships: Friend
                   </Avatar>
                   <span className="text-sm font-medium">{f.fullName ?? "Người dùng LastBite"}</span>
                 </div>
-                <span className="text-xs text-muted-foreground">Đang chờ</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Đang chờ</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleRemove(f.friendshipId)}
+                  >
+                    Huỷ lời mời
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>

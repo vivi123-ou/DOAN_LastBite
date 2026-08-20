@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AddToCartButton } from "@/components/cart/add-to-cart-button";
+import { ShareGroupBuyButton } from "@/components/combo/share-group-buy-button";
 
 const STATUS_MESSAGE: Record<string, string> = {
   locked: "Combo này đã quá hạn Best Before và không còn được bán.",
@@ -19,10 +20,13 @@ const STATUS_MESSAGE: Record<string, string> = {
 
 export default async function ComboDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ groupOrderId?: string }>;
 }) {
   const { id } = await params;
+  const { groupOrderId } = await searchParams;
   const supabase = await createClient();
   const [combo, userId] = await Promise.all([getById(supabase, id), getCurrentUserId(supabase)]);
 
@@ -53,6 +57,12 @@ export default async function ComboDetailPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+      {groupOrderId && (
+        <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
+          Bạn đang mua theo lời mời mua chung — thêm vào giỏ hàng để tiếp tục.
+        </div>
+      )}
+
       {/* Real photos of this exact combo — never a "mystery bag". */}
       {combo.images.length > 0 ? (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -165,18 +175,24 @@ export default async function ComboDetailPage({
         </p>
       )}
       {isBuyable && combo.remainingStock > 0 && (
-        <AddToCartButton
-          item={{
-            comboId: combo.id,
-            storeId: combo.storeId,
-            storeName: combo.storeName,
-            name: combo.name,
-            unitPrice: combo.currentPrice,
-            imageUrl: combo.images[0] ?? null,
-            deliverySupported: combo.deliverySupported,
-            pickupSupported: combo.pickupSupported,
-          }}
-        />
+        <div className="flex gap-2">
+          <AddToCartButton
+            item={{
+              comboId: combo.id,
+              storeId: combo.storeId,
+              storeName: combo.storeName,
+              name: combo.name,
+              unitPrice: combo.currentPrice,
+              imageUrl: combo.images[0] ?? null,
+              deliverySupported: combo.deliverySupported,
+              pickupSupported: combo.pickupSupported,
+            }}
+            groupOrderId={groupOrderId}
+          />
+          {userId && !groupOrderId && (
+            <ShareGroupBuyButton storeId={combo.storeId} comboId={combo.id} />
+          )}
+        </div>
       )}
 
       {reviews.length > 0 && (

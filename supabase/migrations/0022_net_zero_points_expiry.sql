@@ -1,0 +1,23 @@
+-- Additive migration (0001-0021 applied and never edited). Net Zero points
+-- expire 1 year after being earned — the user asked directly for this and
+-- for a concrete "expires on month X" date on the points page.
+--
+-- net_zero_ledger (0001) already recorded each order's kg-CO2-saved impact
+-- with a timestamp (computed_at) but never recorded how many *points* that
+-- same order earned — points only ever went straight into
+-- profiles.net_zero_points as a running total, with no per-earn-event
+-- history to expire against. `points_earned` fixes that gap going forward
+-- (existing rows default to 0 — the exact point value of pre-existing earn
+-- events can't be reconstructed retroactively, an accepted gap for this
+-- scope, same spirit as other "existing data stays as constructed"
+-- additive-migration notes elsewhere in this project).
+--
+-- `swept_at`: this app has no cron/scheduled-job infrastructure (documented
+-- gap, same as the best-before lock and group-order deadline sweep) — point
+-- expiry is enforced lazily instead, via net-zero.repository.ts's
+-- sweepExpiredPoints(), called at every point the balance is actually read
+-- or redeemed (account/net-zero page, /cart, checkout). `swept_at` marks a
+-- ledger row as "already deducted from the balance" so a later sweep call
+-- doesn't double-deduct the same expired points twice.
+alter table net_zero_ledger add column points_earned integer not null default 0;
+alter table net_zero_ledger add column swept_at timestamptz;

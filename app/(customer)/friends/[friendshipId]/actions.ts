@@ -6,8 +6,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById as getFriendship } from "@/lib/repositories/friend.repository";
 import { getById as getProfileById } from "@/lib/repositories/profile.repository";
-import { send as sendMessage } from "@/lib/repositories/message.repository";
+import { send as sendMessage, markRead } from "@/lib/repositories/message.repository";
 import { create as createNotification } from "@/lib/repositories/notification.repository";
+import { getSnapshotsByIds } from "@/lib/repositories/combo.repository";
 import * as groupBuy from "@/lib/repositories/group-buy.repository";
 import type { GroupOrderInvite } from "@/lib/domain/social";
 
@@ -21,6 +22,14 @@ async function requireParty(friendshipId: string) {
 
   const otherId = friendship.requester_id === userId ? friendship.addressee_id : friendship.requester_id;
   return { supabase, userId, friendship, otherId };
+}
+
+// Called once from chat-view.tsx on mount (a real event — the chat was
+// actually opened — not a page-render side effect), so /friends' unread
+// badge for this thread clears the next time that list is loaded.
+export async function markThreadReadAction(friendshipId: string) {
+  const { supabase, userId } = await requireParty(friendshipId);
+  await markRead(supabase, friendshipId, userId);
 }
 
 export async function sendMessageAction(friendshipId: string, body: string) {
@@ -42,21 +51,43 @@ export async function sendMessageAction(friendshipId: string, body: string) {
   revalidatePath(`/friends/${friendshipId}`);
 }
 
+// Not user-configurable (see chat-view.tsx — the deadline chip picker was
+// removed per explicit feedback: "hệ thống tự mặc định" instead of asking).
+// The deadline is the combo's *own* best_before, not a fixed day count —
+// explicit follow-up feedback: a group-buy invite for a same-day combo
+// (this app's combos typically expire in hours, not days — see
+// business-rules.md's per-combo Best Before rule) made no sense staying
+// "open" for a fixed 3 days after the product itself was long gone/unbuyable.
+// Tying the two together means the invite naturally shows "Đã hết hạn" —
+// same isExpired check already in group-order-invite-card.tsx, no separate
+// logic needed there — at the exact moment the product stops being
+// sellable, and checkout's resolveCheckoutDiscount() (which also checks
+// `deadline <= now()`) rejects it at the same moment too.
+//
 // "Mời mua chung" — creates the group_orders row (+ auto-joins the
 // initiator), then posts it as a message carrying group_order_id so it
 // renders as an invite card in the thread (group-order-invite-card.tsx).
+// `comboId` is required, not optional: the invite now points at a specific
+// product to buy together, not just a store with no idea what to buy.
 export async function createGroupOrderInviteAction(
   friendshipId: string,
   storeId: string,
-  deadline: string
+  comboId: string
 ) {
   const { supabase, userId, otherId } = await requireParty(friendshipId);
 
   const admin = createAdminClient();
+
+  const [combo] = await getSnapshotsByIds(admin, [comboId]);
+  if (!combo || combo.status !== "active" || new Date(combo.bestBefore) <= new Date()) {
+    throw new Error("Sản phẩm này đã hết hạn hoặc không còn bán, không thể tạo lời mời.");
+  }
+
   const { id: groupOrderId } = await groupBuy.create(admin, {
     initiatorId: userId,
     storeId,
-    deadline,
+    comboId,
+    deadline: combo.bestBefore,
   });
 
   await sendMessage(supabase, {
@@ -77,13 +108,13 @@ export async function createGroupOrderInviteAction(
   revalidatePath(`/friends/${friendshipId}`);
 }
 
-export async function joinGroupOrderAction(groupOrderId: string) {
+export async function joinGroupOrderAction(groupOrderId: string, quantity: number) {
   const supabase = await createClient();
   const userId = await getCurrentUserId(supabase);
   if (!userId) throw new Error("Bạn cần đăng nhập.");
 
   const admin = createAdminClient();
-  await groupBuy.join(admin, groupOrderId, userId);
+  await groupBuy.join(admin, groupOrderId, userId, Math.max(1, Math.floor(quantity)));
 }
 
 export async function getGroupOrderInviteAction(groupOrderId: string): Promise<GroupOrderInvite | null> {

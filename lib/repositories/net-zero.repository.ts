@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
-import type { NetZeroSummary } from "@/lib/domain/net-zero";
+import type { NetZeroExpiry, NetZeroSummary } from "@/lib/domain/net-zero";
 import { calculatePointsEarned } from "@/lib/pricing/net-zero/net-zero.policy";
+
+// Points expire this many days after being earned — see
+// 0022_net_zero_points_expiry.sql. A named constant, same "tunable business
+// policy, not hardcoded logic" spirit as net-zero.policy.ts's own rates.
+const EXPIRY_DAYS = 365;
 
 // profiles_select_own / net_zero_ledger_select_own RLS (0001) already scope
 // both reads to the signed-in user's own rows — regular client.
@@ -93,17 +98,164 @@ export async function recordOrderImpact(
     }
   }
 
+  const pointsEarned = calculatePointsEarned(totalAmount);
+
   const { error: ledgerError } = await adminClient.from("net_zero_ledger").insert({
     user_id: customerId,
     order_id: orderId,
     co2_saved_kg: co2SavedKg,
+    points_earned: pointsEarned,
   });
   if (ledgerError) throw ledgerError;
 
-  const pointsEarned = calculatePointsEarned(totalAmount);
   if (pointsEarned > 0) {
     await adjustBalance(adminClient, customerId, pointsEarned);
   }
 
   return { pointsEarned, co2SavedKg };
+}
+
+// Display-only — how many points/kg CO2 *this specific order* earned, for
+// orders/[id]/page.tsx's receipt. Regular client is fine (net_zero_ledger's
+// own select-own RLS, 0001, already scopes it to the caller's own rows) —
+// same read-only posture as getSummary()/getNextExpiry(). Returns null both
+// when the order genuinely earned nothing (pointsEarned/co2SavedKg both 0 —
+// shouldn't happen for a real paid order, but not an error either way) and
+// when no ledger row exists at all yet (unpaid order, or markPaid()'s
+// best-effort recordOrderImpact() failed) — callers treat both the same:
+// don't show the earned-impact block.
+//
+// orderTotalAmount is required, not optional: net_zero_ledger.order_id is a
+// NOT NULL FK, so a manually-seeded balance (e.g. the demo 180,000-point
+// balance set directly on Minh Vân's account for testing the
+// points-covers-order checkout path — see CLAUDE.md) still has to point
+// *some* real order_id to satisfy the constraint, even though it isn't
+// genuinely that order's own earned impact. Live-caught bug: that seed row
+// was reused as "this order earned 180,000 points" on a 118,000đ order.
+// calculatePointsEarned() is a pure function of the amount, so a genuine
+// recordOrderImpact() row for this order is *always* exactly
+// calculatePointsEarned(orderTotalAmount) — an exact discriminator, not a
+// heuristic — so any row that doesn't match is treated as unrelated to this
+// order and skipped, same as no row existing at all.
+export async function getImpactForOrder(
+  client: SupabaseClient<Database>,
+  orderId: string,
+  orderTotalAmount: number
+): Promise<{ pointsEarned: number; co2SavedKg: number } | null> {
+  const { data, error } = await client
+    .from("net_zero_ledger")
+    .select("points_earned, co2_saved_kg")
+    .eq("order_id", orderId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  if (data.points_earned !== calculatePointsEarned(orderTotalAmount)) return null;
+  if (data.points_earned <= 0 && data.co2_saved_kg <= 0) return null;
+  return { pointsEarned: data.points_earned, co2SavedKg: data.co2_saved_kg };
+}
+
+// Batched variant of getImpactForOrder() for a whole order list
+// (orders/page.tsx) — one query for every order on the page instead of one
+// per card, same pattern as order.repository.ts's listStatusHistoryForOrders().
+// Takes {id, totalAmount} pairs rather than bare ids for the same
+// exact-match validation getImpactForOrder() does — see its comment.
+export async function getImpactForOrders(
+  client: SupabaseClient<Database>,
+  orders: { id: string; totalAmount: number }[]
+): Promise<Map<string, { pointsEarned: number; co2SavedKg: number }>> {
+  if (orders.length === 0) return new Map();
+  const { data, error } = await client
+    .from("net_zero_ledger")
+    .select("order_id, points_earned, co2_saved_kg")
+    .in(
+      "order_id",
+      orders.map((o) => o.id)
+    );
+  if (error) throw error;
+
+  const expectedPointsByOrder = new Map(orders.map((o) => [o.id, calculatePointsEarned(o.totalAmount)]));
+  const byOrder = new Map<string, { pointsEarned: number; co2SavedKg: number }>();
+  for (const row of data) {
+    if (row.points_earned !== expectedPointsByOrder.get(row.order_id)) continue;
+    if (row.points_earned <= 0 && row.co2_saved_kg <= 0) continue;
+    byOrder.set(row.order_id, { pointsEarned: row.points_earned, co2SavedKg: row.co2_saved_kg });
+  }
+  return byOrder;
+}
+
+// Lazy expiry sweep — no cron/scheduled-job infrastructure exists in this
+// app (same accepted gap as the best-before lock and group-order deadline),
+// so this runs opportunistically at every point the balance is actually
+// read or about to be redeemed (account/net-zero page, /cart, checkout),
+// rather than on a schedule. Always the admin client — deducting from
+// profiles.net_zero_points is the same money-adjacent write class as every
+// other points mutation in this file (adjustBalance, recordOrderImpact).
+//
+// Known simplification, not a bug: this doesn't do true FIFO batch
+// tracking of *which* specific earned points were later spent — it treats
+// "points_earned from an order more than a year old" as expired regardless
+// of whether the customer's current balance still technically includes
+// some of that specific batch or spent it first. Exact batch-level
+// accounting would need tracking remaining-quantity per ledger row (the
+// same class of tradeoff already accepted for stock decrement in
+// order.builder.ts) — not worth the complexity for this scope; the
+// customer's balance can only ever end up equal to or lower than a fully
+// exact FIFO calculation would give, never higher, so this can't let
+// someone redeem points they shouldn't have.
+export async function sweepExpiredPoints(
+  adminClient: SupabaseClient<Database>,
+  userId: string
+): Promise<number> {
+  const cutoff = new Date(Date.now() - EXPIRY_DAYS * 86_400_000).toISOString();
+  const { data: expiredRows, error } = await adminClient
+    .from("net_zero_ledger")
+    .select("id, points_earned")
+    .eq("user_id", userId)
+    .is("swept_at", null)
+    .lt("computed_at", cutoff)
+    .gt("points_earned", 0);
+  if (error) throw error;
+  if (!expiredRows || expiredRows.length === 0) return 0;
+
+  const totalExpired = expiredRows.reduce((sum, row) => sum + row.points_earned, 0);
+  if (totalExpired > 0) {
+    await adjustBalance(adminClient, userId, -totalExpired);
+  }
+
+  const { error: sweepError } = await adminClient
+    .from("net_zero_ledger")
+    .update({ swept_at: new Date().toISOString() })
+    .in(
+      "id",
+      expiredRows.map((row) => row.id)
+    );
+  if (sweepError) throw sweepError;
+
+  return totalExpired;
+}
+
+// Display-only — the soonest upcoming expiry date + how many points are in
+// that batch, for account/net-zero/page.tsx's "sẽ hết hạn vào tháng X"
+// line. Regular client is fine here (net_zero_ledger_select_own RLS, 0001,
+// already scopes it to the caller's own rows) — same read-only posture as
+// getSummary(). Callers should sweepExpiredPoints() first so an
+// already-expired-but-not-yet-swept row never gets reported as "upcoming."
+export async function getNextExpiry(
+  client: SupabaseClient<Database>,
+  userId: string
+): Promise<NetZeroExpiry | null> {
+  const { data, error } = await client
+    .from("net_zero_ledger")
+    .select("computed_at, points_earned")
+    .eq("user_id", userId)
+    .is("swept_at", null)
+    .gt("points_earned", 0)
+    .order("computed_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  const expiresAt = new Date(new Date(data.computed_at).getTime() + EXPIRY_DAYS * 86_400_000);
+  return { date: expiresAt.toISOString(), points: data.points_earned };
 }

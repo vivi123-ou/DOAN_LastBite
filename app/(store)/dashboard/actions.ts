@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { registerStoreSchema, updateStoreSchema } from "@/lib/validation/store.schema";
+import { parseOrThrow } from "@/lib/validation/parse";
 import { getStoreByOwnerId, registerStore, updateStore } from "@/lib/repositories/store.repository";
 
 export async function registerStoreAction(input: unknown) {
-  const parsed = registerStoreSchema.parse(input);
+  const parsed = parseOrThrow(registerStoreSchema, input);
 
   const supabase = await createClient();
   const userId = await getCurrentUserId(supabase);
@@ -18,7 +19,7 @@ export async function registerStoreAction(input: unknown) {
 }
 
 export async function updateStoreAction(input: unknown) {
-  const parsed = updateStoreSchema.parse(input);
+  const parsed = parseOrThrow(updateStoreSchema, input);
 
   const supabase = await createClient();
   const userId = await getCurrentUserId(supabase);

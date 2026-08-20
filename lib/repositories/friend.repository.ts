@@ -99,8 +99,31 @@ export async function respondToRequest(
   return data;
 }
 
+// `adminClient` is required, not optional: profiles_select_own (0001) only
+// lets a user read *their own* row, and there's no RLS policy letting two
+// friends read each other's profile (deliberately — see 0010's own comment
+// on why profiles' policies stay narrow and search goes through the
+// service-role client instead of a new policy). Without this, every "other
+// party" profile in this list came back null under RLS and silently fell
+// back to "Người dùng LastBite" with no avatar — reported live as friend
+// requests/friends showing up with a missing name and avatar. The
+// friendship rows themselves still come from the regular `client` — that
+// part is a genuine same-actor read, friendships_select_own already scopes
+// it correctly.
+// Covers both "cancel my own pending outgoing request" and "unfriend an
+// accepted friendship" — friendships_delete_own RLS (0018) already scopes
+// this to rows where the caller is requester or addressee, regardless of
+// status, so no separate status check is needed here (same "RLS already
+// scopes it correctly" simplicity as updateStatus() elsewhere in this
+// codebase). Regular client — same-actor write.
+export async function remove(client: SupabaseClient<Database>, friendshipId: string): Promise<void> {
+  const { error } = await client.from("friendships").delete().eq("id", friendshipId);
+  if (error) throw error;
+}
+
 export async function listFriendships(
   client: SupabaseClient<Database>,
+  adminClient: SupabaseClient<Database>,
   userId: string
 ): Promise<FriendSummary[]> {
   const { data: rows, error } = await client
@@ -112,7 +135,7 @@ export async function listFriendships(
   if (rows.length === 0) return [];
 
   const otherIds = rows.map((r) => (r.requester_id === userId ? r.addressee_id : r.requester_id));
-  const { data: profiles, error: profilesError } = await client
+  const { data: profiles, error: profilesError } = await adminClient
     .from("profiles")
     .select("id, full_name, avatar_url")
     .in("id", otherIds);

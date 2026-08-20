@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { listCategories } from "@/lib/repositories/category.repository";
 import { getTopPurchasedCategoryIds } from "@/lib/repositories/order.repository";
+import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
 import { CategoryRail } from "@/app/(customer)/_components/category-rail";
 import { ComboSections } from "@/app/(customer)/_components/combo-sections";
 import { SearchResultsSection } from "@/app/(customer)/_components/search-results-section";
@@ -36,6 +37,15 @@ export default async function HomePage({
   const topCategoryIds = userId ? await getTopPurchasedCategoryIds(supabase, userId, 1) : [];
   const recommendedCategoryId = topCategoryIds[0];
   const categoryName = categoryId ? categories.find((c) => c.id === categoryId)?.name : undefined;
+  // Gates "Thêm vào giỏ hàng" on every card grid for the viewer's own
+  // combos (add-to-cart-button.tsx's isOwnStore prop) — combos/[id]/page.tsx
+  // already hides the button entirely for its own store, but the flat
+  // card grids (carousels, search results) had no equivalent check and
+  // were silently letting a store owner add their own combo to their own
+  // cart. undefined for guests/customers with no store — never matches any
+  // real combo.storeId, so the check is simply always false for them.
+  const viewerStore = userId ? await getStoreByOwnerId(supabase, userId) : null;
+  const viewerStoreId = viewerStore?.id;
 
   return (
     <div className="mx-auto max-w-6xl space-y-10 px-4 py-8">
@@ -74,7 +84,7 @@ export default async function HomePage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Khám phá theo loại combo</h2>
+        <h2 className="text-xl font-bold sm:text-2xl">Khám phá theo loại combo</h2>
         <CategoryRail categories={categories} activeCategoryId={categoryId} />
       </section>
 
@@ -83,11 +93,15 @@ export default async function HomePage({
           from the "Tất cả" browse view to filtered search results. */}
       {isFiltered ? (
         <Suspense>
-          <SearchResultsSection categoryName={categoryName} />
+          <SearchResultsSection categoryName={categoryName} viewerStoreId={viewerStoreId} />
         </Suspense>
       ) : (
         <Suspense>
-          <ComboSections recommendedCategoryId={recommendedCategoryId} categories={categories} />
+          <ComboSections
+            recommendedCategoryId={recommendedCategoryId}
+            categories={categories}
+            viewerStoreId={viewerStoreId}
+          />
         </Suspense>
       )}
     </div>

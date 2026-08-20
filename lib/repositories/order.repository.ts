@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.types";
-import type { Order, OrderStatus, StoreMonthlyStats } from "@/lib/domain/order";
+import type { Database, Json } from "@/types/database.types";
+import type { Order, OrderStatus, OrderStatusEvent, StoreMonthlyStats } from "@/lib/domain/order";
 import type { BuiltOrder } from "@/lib/factories/order.builder";
 import { adjustBalance, recordOrderImpact } from "@/lib/repositories/net-zero.repository";
+import { create as createNotification } from "@/lib/repositories/notification.repository";
 
 type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
 
@@ -50,6 +51,8 @@ async function hydrate(
     deliveryAddressLine,
     subtotal: row.subtotal,
     discountAmount: row.discount_amount,
+    bulkDiscountPct: row.bulk_discount_pct,
+    groupOrderId: row.group_order_id,
     netZeroPointsUsed: row.net_zero_points_used,
     totalAmount: row.total_amount,
     paymentStatus: row.payment_status,
@@ -97,6 +100,13 @@ export async function create(adminClient: SupabaseClient<Database>, built: Built
     .select("*")
     .single();
   if (error) throw error;
+
+  // First entry in the status timeline (order-status-timeline.tsx) — admin
+  // client, same as the rest of this cross-actor checkout write.
+  const { error: historyError } = await adminClient
+    .from("order_status_history")
+    .insert({ order_id: order.id, status: "pending" });
+  if (historyError) throw historyError;
 
   const { error: itemsError } = await adminClient
     .from("order_items")
@@ -194,12 +204,78 @@ export async function updateStatus(
   id: string,
   status: OrderStatus
 ): Promise<void> {
+  // Defense-in-depth, same spirit as re-validating stock/price at checkout:
+  // nothing on the client stops a store owner from clicking through every
+  // "next step" button without the customer ever having actually paid
+  // (order-status-actions.tsx has no payment awareness at all) — that left
+  // an order sitting as 'completed' with payment_status still 'unpaid',
+  // which then confusingly still showed the VNPay/Momo picker on an
+  // already-"finished" order. A completed order must have been paid.
+  if (status === "completed") {
+    const { data: existing, error: fetchError } = await client
+      .from("orders")
+      .select("payment_status")
+      .eq("id", id)
+      .single();
+    if (fetchError) throw fetchError;
+    if (existing.payment_status !== "success") {
+      throw new Error("Đơn hàng chưa thanh toán — không thể đánh dấu hoàn tất.");
+    }
+  }
+
   const { error } = await client.from("orders").update({ status }).eq("id", id);
   if (error) throw error;
+
+  // order_status_history_insert_store_owner RLS (0023) already scopes this
+  // to the caller's own store's orders — same regular client, no admin
+  // needed, matching the update above it.
+  const { error: historyError } = await client
+    .from("order_status_history")
+    .insert({ order_id: id, status });
+  if (historyError) throw historyError;
 
   if (status === "rejected" || status === "cancelled") {
     await restoreStock(client, id);
   }
+}
+
+// Newest first — matches the Shopee/Fahasa-style timeline reference this
+// UI is modeled on (order-status-timeline.tsx).
+export async function listStatusHistory(
+  client: SupabaseClient<Database>,
+  orderId: string
+): Promise<OrderStatusEvent[]> {
+  const { data, error } = await client
+    .from("order_status_history")
+    .select("status, changed_at")
+    .eq("order_id", orderId)
+    .order("changed_at", { ascending: false });
+  if (error) throw error;
+  return data.map((row) => ({ status: row.status, changedAt: row.changed_at }));
+}
+
+// Batched variant for a whole order list (dashboard/orders/page.tsx) — one
+// query for every order on the page instead of one per card.
+export async function listStatusHistoryForOrders(
+  client: SupabaseClient<Database>,
+  orderIds: string[]
+): Promise<Map<string, OrderStatusEvent[]>> {
+  if (orderIds.length === 0) return new Map();
+
+  const { data, error } = await client
+    .from("order_status_history")
+    .select("order_id, status, changed_at")
+    .in("order_id", orderIds)
+    .order("changed_at", { ascending: false });
+  if (error) throw error;
+
+  const byOrder = new Map<string, OrderStatusEvent[]>();
+  for (const row of data) {
+    const existing = byOrder.get(row.order_id) ?? [];
+    existing.push({ status: row.status, changedAt: row.changed_at });
+    byOrder.set(row.order_id, existing);
+  }
+  return byOrder;
 }
 
 async function restoreStock(client: SupabaseClient<Database>, orderId: string): Promise<void> {
@@ -223,28 +299,50 @@ async function restoreStock(client: SupabaseClient<Database>, orderId: string): 
   }
 }
 
-// Stand-in for the real VNPay/Momo IPN webhook handler — see
-// app/(customer)/orders/[id]/actions.ts. Admin client: payments has zero
-// client-facing policies (.claude/rules/database-and-schema.md).
+// Called from both real gateway IPN webhooks now — app/api/payments/momo/ipn/route.ts
+// and app/api/payments/vnpay/ipn/route.ts — and from cart/actions.ts's
+// createOrderAction for the zero-total (fully Net Zero points-covered) auto-
+// skip case, where there's genuinely no gateway involved at all. Admin
+// client: payments has zero client-facing policies
+// (.claude/rules/database-and-schema.md).
+//
+// `providerTxnId`/`rawResponse` are optional — the zero-total auto-skip path
+// has no real gateway transaction to report, so it falls back to the old
+// `SIMULATED-...` placeholder (accurately, since nothing was actually
+// charged); both real webhooks pass their gateway's actual transaction id
+// and raw payload, so the `payments` row honestly reflects what happened.
 export async function markPaid(
   adminClient: SupabaseClient<Database>,
   orderId: string,
-  method: "vnpay" | "momo"
+  method: "vnpay" | "momo",
+  providerTxnId?: string,
+  rawResponse?: Record<string, unknown>
 ): Promise<void> {
   const { data: order, error: orderError } = await adminClient
     .from("orders")
-    .select("customer_id, total_amount, fulfillment_type")
+    .select("customer_id, total_amount, fulfillment_type, payment_status")
     .eq("id", orderId)
     .single();
   if (orderError) throw orderError;
 
+  // Idempotency guard: a real payment gateway's IPN can legitimately fire
+  // more than once for the same transaction (retry-on-timeout is standard
+  // gateway behavior) — without this, a duplicate call would insert a
+  // second `payments` row and double-credit Net Zero points via
+  // recordOrderImpact() below.
+  if (order.payment_status === "success") return;
+
   const { error: paymentError } = await adminClient.from("payments").insert({
     order_id: orderId,
     provider: method,
-    provider_txn_id: `SIMULATED-${Date.now()}`,
+    provider_txn_id: providerTxnId ?? `SIMULATED-${Date.now()}`,
     amount: order.total_amount,
     status: "success",
-    raw_response: { simulated: true },
+    // Callers always pass a plain JSON-serializable object (the demo
+    // placeholder, or MoMo's own IPN payload) — Record<string, unknown>
+    // isn't structurally a Json subtype, so this is an intentional, safe-
+    // in-practice cast, same posture as notification.repository.ts's create().
+    raw_response: (rawResponse as Json | undefined) ?? { simulated: true },
     ipn_received_at: new Date().toISOString(),
   });
   if (paymentError) throw paymentError;
@@ -261,7 +359,28 @@ export async function markPaid(
 
   // Best-effort: a Net Zero ledger/points hiccup shouldn't fail the
   // payment itself — the order is genuinely paid regardless.
-  await recordOrderImpact(adminClient, orderId, order.customer_id, order.total_amount).catch(() => {});
+  const impact = await recordOrderImpact(
+    adminClient,
+    orderId,
+    order.customer_id,
+    order.total_amount
+  ).catch(() => null);
+
+  // Surface what was actually credited — previously this ran silently, so
+  // a customer had no way to know points/CO2 were even earned, or how
+  // much, short of digging into /account/net-zero themselves.
+  if (impact && (impact.pointsEarned > 0 || impact.co2SavedKg > 0)) {
+    const parts: string[] = [];
+    if (impact.pointsEarned > 0) parts.push(`+${impact.pointsEarned} điểm Net Zero`);
+    if (impact.co2SavedKg > 0) parts.push(`giảm ${impact.co2SavedKg.toFixed(1)}kg CO2`);
+    await createNotification(adminClient, {
+      userId: order.customer_id,
+      type: "net_zero_earned",
+      title: "Bạn vừa tích luỹ Net Zero!",
+      body: `Đơn hàng này giúp bạn ${parts.join(" và ")}. Xem chi tiết ở trang Điểm Net Zero.`,
+      payload: { orderId },
+    }).catch(() => {});
+  }
 }
 
 export async function getStoreMonthlyStats(

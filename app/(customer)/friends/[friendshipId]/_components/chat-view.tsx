@@ -19,16 +19,12 @@ import { createClient } from "@/lib/supabase/client";
 import {
   sendMessageAction,
   createGroupOrderInviteAction,
+  markThreadReadAction,
 } from "@/app/(customer)/friends/[friendshipId]/actions";
 import { GroupOrderInviteCard } from "@/app/(customer)/friends/[friendshipId]/_components/group-order-invite-card";
 import type { Message } from "@/lib/domain/social";
+import type { StoreComboSummary } from "@/lib/domain/combo";
 import type { Database } from "@/types/database.types";
-
-const DEADLINE_OPTIONS = [
-  { value: "1", label: "1 ngày" },
-  { value: "3", label: "3 ngày" },
-  { value: "7", label: "7 ngày" },
-];
 
 function initialOf(name: string) {
   return (name.trim()[0] ?? "?").toUpperCase();
@@ -58,8 +54,39 @@ export function ChatView({
   const [sending, setSending] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "");
-  const [deadlineDays, setDeadlineDays] = useState("3");
+  const [storeCombos, setStoreCombos] = useState<StoreComboSummary[]>([]);
+  const [comboId, setComboId] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Re-fetches the picked store's active combos whenever the store
+  // selection changes, only while the dialog's actually open — reuses the
+  // same paginated endpoint the map's store-detail-panel.tsx already calls,
+  // just taking its first page (10) rather than the whole catalog, which is
+  // plenty for a picker list. Clearing the previous store's combo/selection
+  // happens in handleStoreChange below (a real event), not here — an effect
+  // resetting its own state synchronously on every dependency change is the
+  // anti-pattern react-hooks/set-state-in-effect flags elsewhere in this
+  // codebase; this effect's only setState call is inside the fetch's own
+  // callback, not synchronously in the effect body.
+  useEffect(() => {
+    if (!inviteOpen || !storeId) return;
+    let cancelled = false;
+    fetch(`/api/stores/${storeId}/combos`)
+      .then((r) => (r.ok ? r.json() : { combos: [] }))
+      .then((data) => {
+        if (cancelled) return;
+        setStoreCombos(data.combos ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteOpen, storeId]);
+
+  function handleStoreChange(value: string) {
+    setStoreId(value);
+    setComboId("");
+    setStoreCombos([]);
+  }
 
   // Real-time delivery for both sides of the thread — messages_select_thread
   // RLS (0010) scopes the subscriber's own session to rows where they're a
@@ -105,6 +132,13 @@ export function ChatView({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Marks this thread read the moment it's actually opened, so /friends'
+  // unread badge for it clears on the next visit there — best-effort, a
+  // failed mark-read shouldn't block viewing the chat itself.
+  useEffect(() => {
+    markThreadReadAction(friendshipId).catch(() => {});
+  }, [friendshipId]);
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     const body = draft.trim();
@@ -121,13 +155,12 @@ export function ChatView({
   }
 
   async function handleCreateInvite() {
-    if (!storeId) {
-      toast.error("Chọn một cửa hàng trước đã.");
+    if (!storeId || !comboId) {
+      toast.error("Chọn cửa hàng và sản phẩm muốn mua chung trước đã.");
       return;
     }
-    const deadline = new Date(Date.now() + Number(deadlineDays) * 86_400_000).toISOString();
     try {
-      await createGroupOrderInviteAction(friendshipId, storeId, deadline);
+      await createGroupOrderInviteAction(friendshipId, storeId, comboId);
       setInviteOpen(false);
       toast.success("Đã gửi lời mời mua chung.");
     } catch {
@@ -197,14 +230,16 @@ export function ChatView({
           <DialogHeader>
             <DialogTitle>Mời mua chung</DialogTitle>
             <DialogDescription>
-              Mua càng nhiều người, càng nhiều khả năng đạt mức giảm giá theo số lượng của cửa hàng.
+              Chọn một sản phẩm cụ thể để rủ bạn bè mua chung. Mua càng nhiều người, càng nhiều khả
+              năng đạt mức giảm giá theo số lượng của cửa hàng. Lời mời sẽ tự động hết hạn cùng lúc
+              với hạn bán (Best Before) của sản phẩm đó.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Cửa hàng</label>
-              <Select value={storeId} onValueChange={(v) => setStoreId(v ?? "")} items={stores.map((s) => ({ value: s.id, label: s.name }))}>
+              <Select value={storeId} onValueChange={(v) => handleStoreChange(v ?? "")} items={stores.map((s) => ({ value: s.id, label: s.name }))}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Chọn cửa hàng" />
                 </SelectTrigger>
@@ -219,23 +254,29 @@ export function ChatView({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Hết hạn sau</label>
-              <div className="flex gap-1.5">
-                {DEADLINE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setDeadlineDays(opt.value)}
-                    className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                      deadlineDays === opt.value
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input text-muted-foreground hover:border-primary hover:text-primary"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              <label className="text-sm font-medium">Sản phẩm muốn mua chung</label>
+              <Select
+                value={comboId}
+                onValueChange={(v) => setComboId(v ?? "")}
+                items={storeCombos.map((c) => ({
+                  value: c.comboId,
+                  label: `${c.name} — ${c.currentPrice.toLocaleString("vi-VN")}đ`,
+                }))}
+                disabled={!storeId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue
+                    placeholder={storeCombos.length === 0 ? "Đang tải / chưa có combo nào" : "Chọn sản phẩm"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {storeCombos.map((c) => (
+                    <SelectItem key={c.comboId} value={c.comboId}>
+                      {c.name} — {c.currentPrice.toLocaleString("vi-VN")}đ
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -243,7 +284,9 @@ export function ChatView({
             <Button variant="outline" onClick={() => setInviteOpen(false)}>
               Huỷ
             </Button>
-            <Button onClick={handleCreateInvite}>Tạo lời mời</Button>
+            <Button onClick={handleCreateInvite} disabled={!storeId || !comboId}>
+              Tạo lời mời
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -2,9 +2,11 @@ import type { ReactNode } from "react";
 import { AccountSidebar } from "@/app/(customer)/account/_components/account-sidebar";
 
 // Left-sidebar shell for the account area, same structural pattern as
-// app/(store)/layout.tsx — "Lịch sử đơn hàng" links out to the existing
-// /orders page (not nested here, so it keeps working unmodified) while
-// "Thông tin tài khoản" and "Điểm Net Zero" (new) live under this layout.
+// app/(store)/layout.tsx. "Lịch sử đơn hàng" links out to the existing
+// /orders page rather than a route nested here (kept as its own top-level
+// page, not duplicated) — but /orders/layout.tsx renders this exact same
+// AccountSidebar independently, so the sidebar stays visible across both
+// without /orders needing to physically live under this folder.
 export default function AccountLayout({ children }: { children: ReactNode }) {
   return (
     <div className="mx-auto flex max-w-4xl flex-col sm:flex-row">

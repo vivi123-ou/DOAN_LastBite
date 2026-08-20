@@ -10,6 +10,7 @@ export interface BuiltOrder {
     subtotal: number;
     discount_amount: number;
     bulk_discount_pct: number;
+    group_order_id: string | null;
     net_zero_points_used: number;
     total_amount: number;
   };
@@ -90,11 +91,21 @@ export class OrderBuilder {
       };
     });
 
+    // Bulk-buy (group order) discount — bulkDiscountPct is the caller's
+    // fresh-fetched resolution (cart/actions.ts, via group-buy.repository.ts's
+    // resolveCheckoutDiscount(), from the group's live total quantity
+    // against bulk_discount_tiers), never trusted from the client. Applied
+    // *before* Net Zero points, not after — points then discount whatever's
+    // actually left to pay, not the pre-bulk-discount subtotal.
+    const bulkDiscountPct = Math.max(0, Math.min(100, input.bulkDiscountPct ?? 0));
+    const bulkDiscountAmount = Math.round((subtotal * bulkDiscountPct) / 100);
+    const subtotalAfterBulkDiscount = subtotal - bulkDiscountAmount;
+
     // Net Zero points redemption — availableNetZeroPoints is the caller's
     // fresh-fetched balance (cart/actions.ts), never trusted from the
     // client, same rule as combo prices/stock above. Capped so a discount
-    // can never exceed the order's own subtotal: redeeming more points
-    // than the order is worth would mean *paying* the customer, not
+    // can never exceed what's left to pay after the bulk discount: redeeming
+    // more points than that would mean *paying* the customer, not
     // discounting them.
     const pointsRequested = Math.max(0, Math.floor(input.netZeroPointsToApply ?? 0));
     const availablePoints = Math.max(0, input.availableNetZeroPoints ?? 0);
@@ -102,11 +113,13 @@ export class OrderBuilder {
       throw new Error("Bạn không có đủ điểm Net Zero.");
     }
     let netZeroPointsUsed = pointsRequested;
-    let discountAmount = calculateRedemptionValue(pointsRequested);
-    if (discountAmount > subtotal) {
-      netZeroPointsUsed = Math.floor(subtotal / VND_PER_POINT);
-      discountAmount = calculateRedemptionValue(netZeroPointsUsed);
+    let pointsDiscount = calculateRedemptionValue(pointsRequested);
+    if (pointsDiscount > subtotalAfterBulkDiscount) {
+      netZeroPointsUsed = Math.floor(subtotalAfterBulkDiscount / VND_PER_POINT);
+      pointsDiscount = calculateRedemptionValue(netZeroPointsUsed);
     }
+
+    const discountAmount = bulkDiscountAmount + pointsDiscount;
 
     return {
       order: {
@@ -115,9 +128,8 @@ export class OrderBuilder {
         fulfillment_type: input.fulfillmentType,
         subtotal,
         discount_amount: discountAmount,
-        // Bulk-buy discount is Phase 4 (bulk_discount_tiers table dormant
-        // until then) — stays 0 here, not hardcoded logic to remove later.
-        bulk_discount_pct: 0,
+        bulk_discount_pct: bulkDiscountPct,
+        group_order_id: input.groupOrderId ?? null,
         net_zero_points_used: netZeroPointsUsed,
         total_amount: subtotal - discountAmount,
       },

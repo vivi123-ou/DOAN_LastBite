@@ -208,11 +208,25 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["messages"]["Row"]>;
         Relationships: [];
       };
+      friendship_reads: {
+        Row: {
+          friendship_id: string;
+          user_id: string;
+          last_read_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["friendship_reads"]["Row"]> & {
+          friendship_id: string;
+          user_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["friendship_reads"]["Row"]>;
+        Relationships: [];
+      };
       group_orders: {
         Row: {
           id: string;
           initiator_id: string;
           store_id: string;
+          combo_id: string | null;
           invite_code: string;
           deadline: string;
           status: "open" | "finalized" | "cancelled";
@@ -232,6 +246,7 @@ export interface Database {
           id: string;
           group_order_id: string;
           user_id: string;
+          quantity: number;
           joined_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["group_order_participants"]["Row"]> & {
@@ -285,6 +300,20 @@ export interface Database {
           subtotal: number;
         };
         Update: Partial<Database["public"]["Tables"]["order_items"]["Row"]>;
+        Relationships: [];
+      };
+      order_status_history: {
+        Row: {
+          id: string;
+          order_id: string;
+          status: "pending" | "accepted" | "rejected" | "preparing" | "ready" | "completed" | "cancelled";
+          changed_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["order_status_history"]["Row"]> & {
+          order_id: string;
+          status: "pending" | "accepted" | "rejected" | "preparing" | "ready" | "completed" | "cancelled";
+        };
+        Update: Partial<Database["public"]["Tables"]["order_status_history"]["Row"]>;
         Relationships: [];
       };
       payments: {
@@ -411,6 +440,8 @@ export interface Database {
           user_id: string;
           order_id: string;
           co2_saved_kg: number;
+          points_earned: number;
+          swept_at: string | null;
           computed_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["net_zero_ledger"]["Row"]> & {
@@ -482,6 +513,13 @@ export interface Database {
           user_id: string;
           full_name: string | null;
           avatar_url: string | null;
+        }[];
+      };
+      unread_message_counts: {
+        Args: Record<string, never>;
+        Returns: {
+          friendship_id: string;
+          unread_count: number;
         }[];
       };
     };

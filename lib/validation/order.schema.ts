@@ -14,6 +14,7 @@ export const checkoutSchema = z
     deliveryLng: z.number().min(-180).max(180).optional(),
     items: z.array(checkoutItemSchema).min(1, "Giỏ hàng đang trống"),
     netZeroPointsToApply: z.coerce.number().int().min(0).optional(),
+    groupOrderId: z.string().uuid().optional(),
   })
   .refine(
     (data) =>
