@@ -34,6 +34,17 @@ interface ComboFormProps {
   initialCombo?: Combo;
 }
 
+// Shopee-style click-to-select chips instead of a slider — same pattern
+// already established for the price-band filter (site-search-filters.tsx)
+// and radius chips, kept consistent here per explicit feedback that a full
+// slider + paragraph felt bulky for a single number. Generated from the
+// shared min/max constants (step 10) rather than hardcoded, so this can't
+// silently drift out of range if those bounds ever change.
+const MAX_DISCOUNT_PCT_OPTIONS = Array.from(
+  { length: (MAX_MAX_DISCOUNT_PCT - MIN_MAX_DISCOUNT_PCT) / 10 + 1 },
+  (_, i) => MIN_MAX_DISCOUNT_PCT + i * 10
+);
+
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -322,24 +333,26 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
       </div>
 
       <div className="space-y-2 rounded-md border p-4">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="max-discount-pct">Mức giảm giá tối đa</Label>
-          <span className="text-sm font-semibold text-primary">{maxDiscountPct}%</span>
+        <Label>Mức giảm giá tối đa</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {MAX_DISCOUNT_PCT_OPTIONS.map((pct) => (
+            <button
+              key={pct}
+              type="button"
+              onClick={() => setMaxDiscountPct(pct)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                maxDiscountPct === pct
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input text-muted-foreground hover:border-primary hover:text-primary"
+              }`}
+            >
+              {pct}%
+            </button>
+          ))}
         </div>
-        <input
-          id="max-discount-pct"
-          type="range"
-          min={MIN_MAX_DISCOUNT_PCT}
-          max={MAX_MAX_DISCOUNT_PCT}
-          step={5}
-          value={maxDiscountPct}
-          onChange={(e) => setMaxDiscountPct(Number(e.target.value))}
-          className="w-full accent-primary"
-        />
         <p className="text-xs text-muted-foreground">
-          Combo sẽ tự động giảm giá dần theo thời gian còn lại và số lượng còn tồn — đây là mức
-          giảm <strong>tối đa</strong> (lúc gần hết hạn mà vẫn còn ế), không phải mức giảm cố định
-          áp dụng ngay. Mặc định {DEFAULT_MAX_DISCOUNT_PCT}%.
+          Mức giảm khi combo gần hết hạn mà còn ế — giá vẫn tự giảm dần theo thời gian, đây chỉ là
+          mức trần.
         </p>
       </div>
 
