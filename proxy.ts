@@ -7,7 +7,17 @@ const PROTECTED_PREFIXES = ["/dashboard", "/profile", "/orders", "/admin"];
 // deprecated in Next.js 16 in favor of "proxy". See
 // node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md.
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  // Forwarded as a *request* header (not a response header) — that's the
+  // documented Next.js way to hand a Server Component's headers() call
+  // something computed in middleware/proxy, since headers() reflects the
+  // incoming request, not whatever the proxy would otherwise respond with.
+  // Root layout (app/layout.tsx) reads this to decide SiteHeader vs
+  // AdminHeader/no-footer for /admin — see that file's own comment.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
+  const nextRequestInit = { request: { headers: requestHeaders } };
+
+  let response = NextResponse.next(nextRequestInit);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,7 +29,7 @@ export async function proxy(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
+          response = NextResponse.next(nextRequestInit);
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
