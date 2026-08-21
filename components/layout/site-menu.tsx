@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Info, Menu, MapPin, Receipt, Store, Users } from "lucide-react";
+import { Home, Info, Menu, MapPin, Receipt, Shield, Store, Users } from "lucide-react";
 
 interface SiteMenuProps {
-  role: "customer" | "store_owner" | null;
+  role: "customer" | "store_owner" | "admin" | null;
   isLoggedIn: boolean;
 }
 
@@ -107,6 +107,13 @@ export function SiteMenu({ role, isLoggedIn }: SiteMenuProps) {
           <>
             <div className="my-1 border-t" />
             {renderItem({ href: "/dashboard", label: "Cửa hàng của tôi", icon: Store })}
+          </>
+        )}
+
+        {role === "admin" && (
+          <>
+            <div className="my-1 border-t" />
+            {renderItem({ href: "/admin", label: "Quản trị", icon: Shield })}
           </>
         )}
 

@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/profile", "/orders"];
+const PROTECTED_PREFIXES = ["/dashboard", "/profile", "/orders", "/admin"];
 
 // Renamed from middleware.ts — the "middleware" file convention is
 // deprecated in Next.js 16 in favor of "proxy". See

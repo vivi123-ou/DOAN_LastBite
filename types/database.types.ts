@@ -11,7 +11,7 @@ export interface Database {
       profiles: {
         Row: {
           id: string;
-          role: "customer" | "store_owner";
+          role: "customer" | "store_owner" | "admin";
           full_name: string | null;
           phone: string | null;
           avatar_url: string | null;
@@ -354,6 +354,10 @@ export interface Database {
           rating: number | null;
           comment: string | null;
           created_at: string;
+          // Admin report-handling (0026) — null until an admin marks it
+          // looked-at. Only meaningful for kind = 'report'.
+          resolved_at: string | null;
+          admin_note: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["combo_reviews"]["Row"]> & {
           order_id: string;
