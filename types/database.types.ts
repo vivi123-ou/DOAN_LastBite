@@ -11,7 +11,7 @@ export interface Database {
       profiles: {
         Row: {
           id: string;
-          role: "customer" | "store_owner";
+          role: "customer" | "store_owner" | "admin";
           full_name: string | null;
           phone: string | null;
           avatar_url: string | null;
@@ -354,6 +354,10 @@ export interface Database {
           rating: number | null;
           comment: string | null;
           created_at: string;
+          // Admin report-handling (0026) — null until an admin marks it
+          // looked-at. Only meaningful for kind = 'report'.
+          resolved_at: string | null;
+          admin_note: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["combo_reviews"]["Row"]> & {
           order_id: string;
@@ -425,6 +429,82 @@ export interface Database {
           category_id: string;
         };
         Update: Partial<Database["public"]["Tables"]["user_category_affinity"]["Row"]>;
+        Relationships: [];
+      };
+      subscription_plans: {
+        Row: {
+          id: string;
+          name: string;
+          price: number;
+          duration_days: number;
+          max_active_combos: number | null;
+          description: string | null;
+          is_default: boolean;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["subscription_plans"]["Row"]> & {
+          name: string;
+          price: number;
+          duration_days: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["subscription_plans"]["Row"]>;
+        Relationships: [];
+      };
+      store_subscriptions: {
+        Row: {
+          id: string;
+          store_id: string;
+          plan_id: string;
+          status: "pending_payment" | "active" | "expired" | "cancelled";
+          started_at: string | null;
+          expires_at: string | null;
+          payment_method: "vnpay" | "momo" | null;
+          provider_txn_id: string | null;
+          amount_paid: number | null;
+          renewal_notified_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["store_subscriptions"]["Row"]> & {
+          store_id: string;
+          plan_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["store_subscriptions"]["Row"]>;
+        Relationships: [];
+      };
+      commission_config: {
+        Row: {
+          id: string;
+          commission_pct: number;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["commission_config"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["commission_config"]["Row"]>;
+        Relationships: [];
+      };
+      store_payouts: {
+        Row: {
+          id: string;
+          store_id: string;
+          period_start: string;
+          period_end: string;
+          order_count: number;
+          gross_revenue: number;
+          commission_pct: number;
+          commission_amount: number;
+          net_payout_amount: number;
+          status: "pending" | "paid";
+          paid_at: string | null;
+          admin_note: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["store_payouts"]["Row"]> & {
+          store_id: string;
+          period_start: string;
+          period_end: string;
+          commission_pct: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["store_payouts"]["Row"]>;
         Relationships: [];
       };
       co2_factors: {

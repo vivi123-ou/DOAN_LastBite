@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Geist, Geist_Mono, Fredoka } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
+import { AdminHeader } from "@/components/layout/admin-header";
 import { CartProvider } from "@/lib/cart/cart-context";
 import "./globals.css";
 
@@ -33,11 +35,20 @@ export const metadata: Metadata = {
     "LastBite kết nối bạn với các combo đồ ăn, thức uống cuối ngày còn ngon từ cửa hàng gần bạn — tiết kiệm chi phí, giảm lãng phí thực phẩm, hướng tới Net Zero.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // x-pathname is set by proxy.ts on every request — the standard Next.js
+  // way to hand a Server Component layout the current path, since there's
+  // no server-side usePathname(). Used here for exactly one purpose: /admin
+  // gets a completely separate "back office" chrome (AdminHeader, no
+  // SiteFooter) instead of the customer storefront's cart/search/nav —
+  // explicit request, not a variant of the same header.
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  const isAdmin = pathname.startsWith("/admin");
+
   return (
     <html
       lang="vi"
@@ -53,9 +64,9 @@ export default function RootLayout({
             opaquely. SiteFooter carries id="site-footer", the scroll target
             for every "Về chúng tôi" menu link (site-menu.tsx). */}
         <CartProvider>
-          <SiteHeader />
+          {isAdmin ? <AdminHeader /> : <SiteHeader />}
           <main className="flex-1">{children}</main>
-          <SiteFooter />
+          {!isAdmin && <SiteFooter />}
           <Toaster />
         </CartProvider>
       </body>
