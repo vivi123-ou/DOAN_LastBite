@@ -5,6 +5,7 @@ import { getCurrentUserId } from "@/lib/supabase/auth";
 import { listCategories } from "@/lib/repositories/category.repository";
 import { getTopPurchasedCategoryIds } from "@/lib/repositories/order.repository";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
+import { getById as getProfileById } from "@/lib/repositories/profile.repository";
 import { CategoryRail } from "@/app/(customer)/_components/category-rail";
 import { ComboSections } from "@/app/(customer)/_components/combo-sections";
 import { SearchResultsSection } from "@/app/(customer)/_components/search-results-section";
@@ -46,6 +47,12 @@ export default async function HomePage({
   // real combo.storeId, so the check is simply always false for them.
   const viewerStore = userId ? await getStoreByOwnerId(supabase, userId) : null;
   const viewerStoreId = viewerStore?.id;
+  // A signed-in role='admin' account is a "pure staff" account per the
+  // explicit product decision — no shopping. Threaded down the same way
+  // as viewerStoreId, to gate "Thêm vào giỏ hàng" on every card grid (see
+  // add-to-cart-button.tsx's isAdmin prop).
+  const viewerProfile = userId ? await getProfileById(supabase, userId) : null;
+  const isAdmin = viewerProfile?.role === "admin";
 
   return (
     <div className="mx-auto max-w-6xl space-y-10 px-4 py-8">
@@ -101,7 +108,11 @@ export default async function HomePage({
           from the "Tất cả" browse view to filtered search results. */}
       {isFiltered ? (
         <Suspense>
-          <SearchResultsSection categoryName={categoryName} viewerStoreId={viewerStoreId} />
+          <SearchResultsSection
+            categoryName={categoryName}
+            viewerStoreId={viewerStoreId}
+            isAdmin={isAdmin}
+          />
         </Suspense>
       ) : (
         <Suspense>
@@ -109,6 +120,7 @@ export default async function HomePage({
             recommendedCategoryId={recommendedCategoryId}
             categories={categories}
             viewerStoreId={viewerStoreId}
+            isAdmin={isAdmin}
           />
         </Suspense>
       )}

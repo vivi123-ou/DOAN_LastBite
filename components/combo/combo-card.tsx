@@ -26,6 +26,10 @@ interface ComboCardProps {
   // add-to-cart-button.tsx's isOwnStore prop). Threaded down from
   // page.tsx, since NearbyCombo carries no ownership info of its own.
   viewerStoreId?: string;
+  // True for a signed-in role='admin' account — see
+  // add-to-cart-button.tsx's isAdmin prop. Threaded the same way as
+  // viewerStoreId above.
+  isAdmin?: boolean;
 }
 
 // No contextual "which section is this from" badge on the card itself —
@@ -33,7 +37,7 @@ interface ComboCardProps {
 // redundant/buggy-looking wherever the card already sits under its own
 // section heading (carousel rows, the search-results list) — the heading
 // says it once, the card doesn't need to repeat it.
-export function ComboCard({ combo, viewerStoreId }: ComboCardProps) {
+export function ComboCard({ combo, viewerStoreId, isAdmin }: ComboCardProps) {
   const discountPct = Math.round(
     (1 - combo.currentPrice / Math.max(combo.originalPrice, 1)) * 100
   );
@@ -105,6 +109,7 @@ export function ComboCard({ combo, viewerStoreId }: ComboCardProps) {
             pickupSupported: combo.pickupSupported,
           }}
           isOwnStore={Boolean(viewerStoreId) && viewerStoreId === combo.storeId}
+          isAdmin={isAdmin}
         />
       </div>
     </Card>

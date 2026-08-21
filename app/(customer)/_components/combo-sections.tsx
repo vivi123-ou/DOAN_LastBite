@@ -29,10 +29,12 @@ export function ComboSections({
   recommendedCategoryId,
   categories,
   viewerStoreId,
+  isAdmin,
 }: {
   recommendedCategoryId?: string;
   categories: Category[];
   viewerStoreId?: string;
+  isAdmin?: boolean;
 }) {
   const [locationState, setLocationState] = useState<"locating" | "ready" | "denied">("locating");
   const coordsRef = useRef<Coordinates | null>(null);
@@ -137,6 +139,7 @@ export function ComboSections({
               combos={[]}
               emptyMessage="Mua vài đơn nữa để LastBite hiểu khẩu vị của bạn và gợi ý combo phù hợp nhé!"
               viewerStoreId={viewerStoreId}
+              isAdmin={isAdmin}
             />
           );
         }
@@ -159,6 +162,7 @@ export function ComboSections({
             title={section.title}
             combos={combos}
             viewerStoreId={viewerStoreId}
+            isAdmin={isAdmin}
           />
         );
       })}
@@ -175,7 +179,13 @@ export function ComboSections({
         }
         if (combos.length === 0) return null; // no dead shelf for an empty category
         return (
-          <ComboCarousel key={cat.id} title={cat.name} combos={combos} viewerStoreId={viewerStoreId} />
+          <ComboCarousel
+            key={cat.id}
+            title={cat.name}
+            combos={combos}
+            viewerStoreId={viewerStoreId}
+            isAdmin={isAdmin}
+          />
         );
       })}
     </div>

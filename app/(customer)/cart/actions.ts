@@ -7,6 +7,7 @@ import { checkoutSchema } from "@/lib/validation/order.schema";
 import { parseOrThrow } from "@/lib/validation/parse";
 import { getSnapshotsByIds } from "@/lib/repositories/combo.repository";
 import { getOwnerIdById } from "@/lib/repositories/store.repository";
+import { getById as getProfileById } from "@/lib/repositories/profile.repository";
 import { getSummary, sweepExpiredPoints } from "@/lib/repositories/net-zero.repository";
 import { resolveCheckoutDiscount } from "@/lib/repositories/group-buy.repository";
 import { OrderBuilder } from "@/lib/factories/order.builder";
@@ -40,6 +41,16 @@ export async function createOrderAction(input: unknown): Promise<{ orderId: stri
   if (!userId) throw new Error("Bạn cần đăng nhập trước khi đặt hàng.");
 
   const admin = createAdminClient();
+
+  // role='admin' is a "pure staff" account per explicit product decision —
+  // no shopping. The primary gate is hiding the cart/checkout entry points
+  // entirely for that role (site-header.tsx, add-to-cart-button.tsx's
+  // isAdmin prop); this is defense-in-depth in case a stale cart or a
+  // direct action call slips through.
+  const profile = await getProfileById(supabase, userId);
+  if (profile?.role === "admin") {
+    throw new Error("Tài khoản quản trị không thể mua hàng.");
+  }
 
   // Defense-in-depth: a store can't buy from itself — the primary gate is
   // combos/[id]/page.tsx not showing "Thêm vào giỏ hàng" for the viewer's

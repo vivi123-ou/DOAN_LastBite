@@ -21,11 +21,13 @@ export function ComboCarousel({
   combos,
   emptyMessage,
   viewerStoreId,
+  isAdmin,
 }: {
   title: string;
   combos: NearbyCombo[];
   emptyMessage?: string;
   viewerStoreId?: string;
+  isAdmin?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -114,7 +116,7 @@ export function ComboCarousel({
               key={combo.comboId}
               className="w-[68%] shrink-0 snap-start sm:w-[44%] md:w-[31%] lg:w-[23%]"
             >
-              <ComboCard combo={combo} viewerStoreId={viewerStoreId} />
+              <ComboCard combo={combo} viewerStoreId={viewerStoreId} isAdmin={isAdmin} />
             </div>
           ))}
         </div>
