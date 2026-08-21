@@ -8,6 +8,7 @@ import type {
   AdminUserSummary,
 } from "@/lib/domain/admin";
 import { computeStockBasedDecayPrice } from "@/lib/pricing/strategies/stock-based-decay.strategy";
+import { getCommissionConfig } from "@/lib/repositories/commission.repository";
 
 // Every function in this file requires the service-role admin client —
 // an admin genuinely needs to read/act across every store and customer
@@ -18,6 +19,10 @@ import { computeStockBasedDecayPrice } from "@/lib/pricing/strategies/stock-base
 // profiles.role = 'admin'), not by loosening what a regular client can see.
 
 export async function getOverviewStats(admin: SupabaseClient<Database>): Promise<AdminOverviewStats> {
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
   const [
     { count: totalUsers, error: usersError },
     { data: stores, error: storesError },
@@ -25,6 +30,8 @@ export async function getOverviewStats(admin: SupabaseClient<Database>): Promise
     { data: ledgerRows, error: ledgerError },
     { count: openReportsCount, error: reportsError },
     { data: subscriptionRows, error: subscriptionsError },
+    { commissionPct },
+    { data: monthOrders, error: monthOrdersError },
   ] = await Promise.all([
     admin.from("profiles").select("id", { count: "exact", head: true }),
     admin.from("stores").select("verification_status"),
@@ -36,6 +43,17 @@ export async function getOverviewStats(admin: SupabaseClient<Database>): Promise
       .eq("kind", "report")
       .is("resolved_at", null),
     admin.from("store_subscriptions").select("amount_paid").eq("status", "active"),
+    // Same "missing table degrades gracefully on a pre-existing critical
+    // page" exception used for combo_reviews/order_status_history — this
+    // overview page predates commission_config (0028); a store that hasn't
+    // run that migration yet shouldn't lose the whole /admin overview over
+    // one new stat card.
+    getCommissionConfig(admin).catch(() => ({ commissionPct: 0 })),
+    admin
+      .from("orders")
+      .select("total_amount")
+      .eq("status", "completed")
+      .gte("created_at", startOfMonth.toISOString()),
   ]);
   if (usersError) throw usersError;
   if (storesError) throw storesError;
@@ -43,9 +61,11 @@ export async function getOverviewStats(admin: SupabaseClient<Database>): Promise
   if (ledgerError) throw ledgerError;
   if (reportsError) throw reportsError;
   if (subscriptionsError) throw subscriptionsError;
+  if (monthOrdersError) throw monthOrdersError;
 
   const completedOrders = (orders ?? []).filter((o) => o.status === "completed");
   const totalCo2SavedKg = (ledgerRows ?? []).reduce((sum, r) => sum + r.co2_saved_kg, 0);
+  const monthGrossRevenue = (monthOrders ?? []).reduce((sum, o) => sum + o.total_amount, 0);
 
   return {
     totalUsers: totalUsers ?? 0,
@@ -56,6 +76,7 @@ export async function getOverviewStats(admin: SupabaseClient<Database>): Promise
     completedOrders: completedOrders.length,
     totalRevenue: completedOrders.reduce((sum, o) => sum + o.total_amount, 0),
     subscriptionRevenue: (subscriptionRows ?? []).reduce((sum, r) => sum + (r.amount_paid ?? 0), 0),
+    commissionRevenueThisMonth: Math.round((monthGrossRevenue * commissionPct) / 100),
     totalCo2SavedKg,
     totalFoodRescuedKg: totalCo2SavedKg / 2.5,
     openReportsCount: openReportsCount ?? 0,

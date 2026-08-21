@@ -10,6 +10,11 @@ export interface AdminOverviewStats {
   // gói dịch vụ revenue specifically, kept separate from order revenue
   // above (they're genuinely different revenue streams).
   subscriptionRevenue: number;
+  // Platform commission owed across every store for the current calendar
+  // month, computed live from completed orders (same formula as
+  // commission.repository.ts's computeCommissionReport()) — a third,
+  // separate revenue stream from subscriptions.
+  commissionRevenueThisMonth: number;
   totalCo2SavedKg: number;
   // Derived from totalCo2SavedKg using the user's own stated conversion
   // (1kg food rescued ≈ 2.5kg CO2 avoided) — this app's co2_factors seed

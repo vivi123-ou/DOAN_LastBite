@@ -472,6 +472,41 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["store_subscriptions"]["Row"]>;
         Relationships: [];
       };
+      commission_config: {
+        Row: {
+          id: string;
+          commission_pct: number;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["commission_config"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["commission_config"]["Row"]>;
+        Relationships: [];
+      };
+      store_payouts: {
+        Row: {
+          id: string;
+          store_id: string;
+          period_start: string;
+          period_end: string;
+          order_count: number;
+          gross_revenue: number;
+          commission_pct: number;
+          commission_amount: number;
+          net_payout_amount: number;
+          status: "pending" | "paid";
+          paid_at: string | null;
+          admin_note: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["store_payouts"]["Row"]> & {
+          store_id: string;
+          period_start: string;
+          period_end: string;
+          commission_pct: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["store_payouts"]["Row"]>;
+        Relationships: [];
+      };
       co2_factors: {
         Row: {
           id: string;

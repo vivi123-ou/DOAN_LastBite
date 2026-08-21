@@ -2,7 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, CreditCard, LayoutDashboard, Store, Package, Flag, ClipboardList, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  CreditCard,
+  LayoutDashboard,
+  Store,
+  Package,
+  Flag,
+  ClipboardList,
+  Users,
+  Percent,
+  Wallet,
+} from "lucide-react";
 
 const ITEMS = [
   { href: "/admin", label: "Tổng quan", icon: LayoutDashboard },
@@ -10,6 +21,8 @@ const ITEMS = [
   { href: "/admin/combos", label: "Combo", icon: Package },
   { href: "/admin/plans", label: "Gói dịch vụ", icon: CreditCard },
   { href: "/admin/subscriptions", label: "Đăng ký gói", icon: ClipboardList },
+  { href: "/admin/commission", label: "Hoa hồng", icon: Percent },
+  { href: "/admin/payouts", label: "Đối soát", icon: Wallet },
   { href: "/admin/reports", label: "Báo cáo", icon: Flag },
   { href: "/admin/users", label: "Người dùng", icon: Users },
 ];

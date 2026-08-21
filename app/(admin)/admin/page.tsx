@@ -56,6 +56,11 @@ export default async function AdminOverviewPage() {
           value={`${stats.subscriptionRevenue.toLocaleString("vi-VN")}đ`}
         />
         <StatCard
+          label="Hoa hồng tháng này"
+          value={`${stats.commissionRevenueThisMonth.toLocaleString("vi-VN")}đ`}
+          hint="Xem chi tiết theo cửa hàng ở mục Hoa hồng"
+        />
+        <StatCard
           label="CO2 đã giảm"
           value={`${stats.totalCo2SavedKg.toFixed(1)} kg`}
           hint={`≈ ${stats.totalFoodRescuedKg.toFixed(1)} kg thực phẩm được giải cứu`}
