@@ -59,7 +59,10 @@ export function SiteMenu({ role, isLoggedIn }: SiteMenuProps) {
   ];
   if (isLoggedIn) {
     primaryItems.push({ href: "/friends", label: "Bạn bè", icon: Users });
-    if (role !== "store_owner") {
+    // role='admin' is a "pure staff" account, per explicit product
+    // decision — no order history to show, same exclusion as store_owner
+    // (whose own "orders" are the store's incoming order queue instead).
+    if (role !== "store_owner" && role !== "admin") {
       primaryItems.push({ href: "/orders", label: "Đơn hàng của tôi", icon: Receipt });
     }
   }
@@ -103,7 +106,10 @@ export function SiteMenu({ role, isLoggedIn }: SiteMenuProps) {
       >
         {primaryItems.map(renderItem)}
 
-        {isLoggedIn && (
+        {/* role='admin' can't register/own a store either (see
+            registerStoreAction's server-side block) — no reason to show
+            the entry point. */}
+        {isLoggedIn && role !== "admin" && (
           <>
             <div className="my-1 border-t" />
             {renderItem({ href: "/dashboard", label: "Cửa hàng của tôi", icon: Store })}

@@ -47,8 +47,9 @@ export async function SiteHeader() {
               isOwnStore gate on combos/[id]/page.tsx, which only blocks
               buying from your own store, not shopping generally), so hiding
               the cart entirely for that role was hiding a feature that
-              genuinely works. */}
-          <MiniCart />
+              genuinely works. role='admin' is the one exception — a "pure
+              staff" account per explicit product decision, no shopping. */}
+          {role !== "admin" && <MiniCart />}
           {userId && profile ? (
             <>
               {/* "Kiểm tra đơn hàng" — inbook.vn reference has this as a
@@ -56,15 +57,18 @@ export async function SiteHeader() {
                   already exists (phase 2) and already shows status per
                   order; this was just missing a direct entry point from the
                   header, so people had to go through Menu → "Đơn hàng của
-                  tôi" instead. */}
-              <Link
-                href="/orders"
-                aria-label="Kiểm tra đơn hàng"
-                title="Kiểm tra đơn hàng"
-                className="flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <PackageSearch className="size-5" />
-              </Link>
+                  tôi" instead. Hidden for role='admin' — no orders of their
+                  own to track. */}
+              {role !== "admin" && (
+                <Link
+                  href="/orders"
+                  aria-label="Kiểm tra đơn hàng"
+                  title="Kiểm tra đơn hàng"
+                  className="flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <PackageSearch className="size-5" />
+                </Link>
+              )}
               <NotificationBell userId={userId} />
               <UserMenu
                 fullName={profile.fullName}

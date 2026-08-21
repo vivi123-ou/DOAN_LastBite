@@ -4,6 +4,7 @@ import { Clock, MapPin, Package, Star, Store as StoreIcon, Truck } from "lucide-
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById } from "@/lib/repositories/combo.repository";
+import { getById as getProfileById } from "@/lib/repositories/profile.repository";
 import { getComboRatingSummary, listPublicForCombo } from "@/lib/repositories/review.repository";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -53,7 +54,11 @@ export default async function ComboDetailPage({
   // it here is sufficient; createOrderAction also rejects it server-side
   // as defense-in-depth in case a stale cart slips through.
   const isOwnStore = userId !== null && userId === combo.storeOwnerId;
-  const isBuyable = combo.status === "active" && !isOwnStore;
+  // role='admin' is a "pure staff" account per the explicit product
+  // decision — no shopping, same treatment as isOwnStore above.
+  const viewerProfile = userId ? await getProfileById(supabase, userId) : null;
+  const isAdmin = viewerProfile?.role === "admin";
+  const isBuyable = combo.status === "active" && !isOwnStore && !isAdmin;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
@@ -164,7 +169,12 @@ export default async function ComboDetailPage({
           />
         </div>
       )}
-      {!isBuyable && !isOwnStore && (
+      {isAdmin && !isOwnStore && combo.status === "active" && (
+        <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+          Tài khoản quản trị không thể mua hàng.
+        </p>
+      )}
+      {!isBuyable && !isOwnStore && !isAdmin && (
         <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
           {STATUS_MESSAGE[combo.status] ?? "Combo này hiện không thể mua."}
         </p>

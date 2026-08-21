@@ -30,9 +30,11 @@ type Status = "locating" | "loading" | "ready" | "denied" | "error";
 export function SearchResultsSection({
   categoryName,
   viewerStoreId,
+  isAdmin,
 }: {
   categoryName?: string;
   viewerStoreId?: string;
+  isAdmin?: boolean;
 }) {
   const searchParams = useSearchParams();
   const categoryId = searchParams.get("categoryId");
@@ -115,7 +117,9 @@ export function SearchResultsSection({
         <p className="py-8 text-sm text-destructive">Không tải được danh sách combo, thử lại sau.</p>
       )}
 
-      {status === "ready" && <ComboList combos={combos} viewerStoreId={viewerStoreId} />}
+      {status === "ready" && (
+        <ComboList combos={combos} viewerStoreId={viewerStoreId} isAdmin={isAdmin} />
+      )}
     </div>
   );
 }
