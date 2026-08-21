@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { ArrowLeft, Shield } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
-import { getById } from "@/lib/repositories/profile.repository";
 import { UserMenu } from "@/components/layout/user-menu";
+
+interface AdminHeaderProps {
+  userId?: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+  email: string | null;
+}
 
 // Deliberately separate from SiteHeader, not a variant of it — explicit
 // request: /admin should read as "back office" (no cart/search/shopping
@@ -10,16 +15,19 @@ import { UserMenu } from "@/components/layout/user-menu";
 // on underneath. Same h-16 height as SiteHeader so app/(admin)/admin/layout.tsx's
 // `sticky top-16` sidebar math (copied from the store dashboard's own
 // StoreSidebar) still lines up correctly.
-export async function AdminHeader() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  const userId = data?.claims.sub as string | undefined;
-  const profile = userId ? await getById(supabase, userId) : null;
-
+//
+// Plain prop-driven function, not its own async Server Component fetch —
+// see site-header.tsx's own comment for why (root-chrome.tsx needs both
+// headers pre-rendered with data already resolved, so it can switch between
+// them purely client-side on every navigation, not just on a hard reload).
+export function AdminHeader({ userId, fullName, avatarUrl, email }: AdminHeaderProps) {
   return (
     <header className="sticky top-0 z-40 border-b bg-background">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
-        <Link href="/admin" className="flex shrink-0 items-center gap-2 font-display text-lg font-semibold text-primary">
+        <Link
+          href="/admin"
+          className="flex shrink-0 items-center gap-2 font-display text-lg font-semibold text-primary"
+        >
           <Shield className="size-6" />
           LastBite Admin
         </Link>
@@ -34,13 +42,7 @@ export async function AdminHeader() {
           Về trang chính
         </Link>
 
-        {userId && profile && (
-          <UserMenu
-            fullName={profile.fullName}
-            avatarUrl={profile.avatarUrl}
-            email={(data?.claims.email as string) ?? null}
-          />
-        )}
+        {userId && <UserMenu fullName={fullName} avatarUrl={avatarUrl} email={email} />}
       </div>
     </header>
   );

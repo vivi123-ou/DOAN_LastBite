@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { Geist, Geist_Mono, Fredoka } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
-import { SiteHeader } from "@/components/layout/site-header";
-import { SiteFooter } from "@/components/layout/site-footer";
-import { AdminHeader } from "@/components/layout/admin-header";
+import { RootChrome } from "@/components/layout/root-chrome";
 import { CartProvider } from "@/lib/cart/cart-context";
+import { createClient } from "@/lib/supabase/server";
+import { getById } from "@/lib/repositories/profile.repository";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,14 +39,20 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // x-pathname is set by proxy.ts on every request — the standard Next.js
-  // way to hand a Server Component layout the current path, since there's
-  // no server-side usePathname(). Used here for exactly one purpose: /admin
-  // gets a completely separate "back office" chrome (AdminHeader, no
-  // SiteFooter) instead of the customer storefront's cart/search/nav —
-  // explicit request, not a variant of the same header.
-  const pathname = (await headers()).get("x-pathname") ?? "";
-  const isAdmin = pathname.startsWith("/admin");
+  // Fetched once, here, and handed down to RootChrome as props — both
+  // SiteHeader and AdminHeader used to each independently fetch this same
+  // profile row (one extra redundant query per page load); now there's
+  // exactly one. See root-chrome.tsx's own comment for why the actual
+  // SiteHeader-vs-AdminHeader *switch* has to happen client-side
+  // (usePathname()) rather than here in the root layout — a root layout
+  // only re-runs on a hard reload, not on ordinary client-side navigation,
+  // so branching on the path here silently kept the wrong header visible
+  // after clicking into /admin from the customer site.
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  const userId = data?.claims.sub as string | undefined;
+  const profile = userId ? await getById(supabase, userId) : null;
+  const email = (data?.claims.email as string) ?? null;
 
   return (
     <html
@@ -58,15 +63,18 @@ export default async function RootLayout({
         className="min-h-full flex flex-col bg-background text-foreground"
         suppressHydrationWarning
       >
-        {/* CartProvider is a Client Component, but SiteHeader/SiteFooter
-            (Server Components) can still be passed into it as children —
-            Next.js renders the server subtree first and hands it down
-            opaquely. SiteFooter carries id="site-footer", the scroll target
-            for every "Về chúng tôi" menu link (site-menu.tsx). */}
+        {/* CartProvider is a Client Component, but RootChrome (also client,
+            for the reason above) can still be nested inside it normally. */}
         <CartProvider>
-          {isAdmin ? <AdminHeader /> : <SiteHeader />}
-          <main className="flex-1">{children}</main>
-          {!isAdmin && <SiteFooter />}
+          <RootChrome
+            userId={userId}
+            role={profile?.role ?? null}
+            fullName={profile?.fullName ?? null}
+            avatarUrl={profile?.avatarUrl ?? null}
+            email={email}
+          >
+            {children}
+          </RootChrome>
           <Toaster />
         </CartProvider>
       </body>
