@@ -82,10 +82,10 @@ export default async function HomePage({
           </h1>
           <span className="flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
             <Leaf className="size-3.5" />
-            Net Zero · Ăn ngon, giảm lãng phí
+            Net Zero - Ăn ngon, giảm lãng phí
           </span>
           <p className="max-w-lg text-sm font-semibold tracking-wide text-white sm:text-base">
-            HỆ THỐNG · KẾT NỐI CỬA HÀNG F&amp;B VÀ NGƯỜI TIÊU DÙNG ĐỂ GIẢI CỨU THỰC PHẨM TỒN CUỐI
+            HỆ THỐNG KẾT NỐI CỬA HÀNG F&amp;B VÀ NGƯỜI TIÊU DÙNG ĐỂ GIẢI CỨU THỰC PHẨM TỒN CUỐI
             NGÀY
           </p>
         </div>
