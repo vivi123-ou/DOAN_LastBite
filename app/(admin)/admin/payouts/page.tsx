@@ -1,14 +1,31 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listPayoutsForAdmin } from "@/lib/repositories/commission.repository";
 import { listVerified } from "@/lib/repositories/store.repository";
+import type { PayoutStatus } from "@/lib/domain/commission";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AdminFilterBar } from "@/components/admin/admin-filter-bar";
 import { GeneratePayoutForm } from "@/app/(admin)/admin/payouts/_components/generate-payout-form";
 import { MarkPaidButton } from "@/app/(admin)/admin/payouts/_components/mark-paid-button";
 
-export default async function AdminPayoutsPage() {
+const VALID_STATUSES: PayoutStatus[] = ["pending", "paid"];
+
+function parseStatus(raw: string | undefined): PayoutStatus | undefined {
+  return VALID_STATUSES.find((s) => s === raw);
+}
+
+export default async function AdminPayoutsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>;
+}) {
+  const { q, status: rawStatus } = await searchParams;
+  const status = parseStatus(rawStatus);
   const admin = createAdminClient();
-  const [payouts, stores] = await Promise.all([listPayoutsForAdmin(admin), listVerified(admin, 200)]);
+  const [payouts, stores] = await Promise.all([
+    listPayoutsForAdmin(admin, { search: q, status }),
+    listVerified(admin, 200),
+  ]);
 
   return (
     <div className="space-y-6 px-4 py-8">
@@ -23,6 +40,23 @@ export default async function AdminPayoutsPage() {
       </div>
 
       <GeneratePayoutForm stores={stores} />
+
+      <AdminFilterBar
+        searchPlaceholder="Tìm theo tên cửa hàng..."
+        searchDefaultValue={q}
+        selects={[
+          {
+            name: "status",
+            defaultValue: rawStatus ?? "",
+            options: [
+              { value: "", label: "Tất cả trạng thái" },
+              { value: "pending", label: "Chờ đối soát" },
+              { value: "paid", label: "Đã trả" },
+            ],
+          },
+        ]}
+        hasActiveFilter={Boolean(q || status)}
+      />
 
       <div className="space-y-3">
         {payouts.map((p) => (
@@ -57,7 +91,9 @@ export default async function AdminPayoutsPage() {
           </Card>
         ))}
         {payouts.length === 0 && (
-          <p className="py-10 text-center text-muted-foreground">Chưa có phiếu đối soát nào.</p>
+          <p className="py-10 text-center text-muted-foreground">
+            {q || status ? "Không tìm thấy phiếu đối soát nào khớp bộ lọc." : "Chưa có phiếu đối soát nào."}
+          </p>
         )}
       </div>
     </div>

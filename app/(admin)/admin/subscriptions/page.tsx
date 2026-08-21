@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listStoreSubscriptionsForAdmin } from "@/lib/repositories/subscription.repository";
+import type { SubscriptionStatus } from "@/lib/domain/subscription";
 import { Badge } from "@/components/ui/badge";
+import { AdminFilterBar } from "@/components/admin/admin-filter-bar";
 
 const STATUS_LABEL: Record<string, string> = {
   pending_payment: "Chờ thanh toán",
@@ -9,14 +11,26 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Đã huỷ",
 };
 
+const VALID_STATUSES: SubscriptionStatus[] = ["pending_payment", "active", "expired", "cancelled"];
+
+function parseStatus(raw: string | undefined): SubscriptionStatus | undefined {
+  return VALID_STATUSES.find((s) => s === raw);
+}
+
 // Module-scope helper (not Date.now() inline in the component body) — same
 // react-hooks/purity workaround already established in admin/combos/page.tsx.
 function isPast(iso: string | null): boolean {
   return Boolean(iso && new Date(iso).getTime() <= Date.now());
 }
 
-export default async function AdminSubscriptionsPage() {
-  const rows = await listStoreSubscriptionsForAdmin(createAdminClient());
+export default async function AdminSubscriptionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>;
+}) {
+  const { q, status: rawStatus } = await searchParams;
+  const status = parseStatus(rawStatus);
+  const rows = await listStoreSubscriptionsForAdmin(createAdminClient(), { search: q, status });
 
   return (
     <div className="space-y-4 px-4 py-8">
@@ -27,6 +41,25 @@ export default async function AdminSubscriptionsPage() {
           ở đây — coi như đang dùng gói Free mặc định.
         </p>
       </div>
+
+      <AdminFilterBar
+        searchPlaceholder="Tìm theo tên cửa hàng..."
+        searchDefaultValue={q}
+        selects={[
+          {
+            name: "status",
+            defaultValue: rawStatus ?? "",
+            options: [
+              { value: "", label: "Tất cả trạng thái" },
+              { value: "pending_payment", label: "Chờ thanh toán" },
+              { value: "active", label: "Đang hoạt động" },
+              { value: "expired", label: "Đã hết hạn" },
+              { value: "cancelled", label: "Đã huỷ" },
+            ],
+          },
+        ]}
+        hasActiveFilter={Boolean(q || status)}
+      />
 
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
@@ -72,7 +105,9 @@ export default async function AdminSubscriptionsPage() {
         </table>
         {rows.length === 0 && (
           <p className="py-10 text-center text-muted-foreground">
-            Chưa có cửa hàng nào mua gói dịch vụ.
+            {q || status
+              ? "Không tìm thấy cửa hàng nào khớp bộ lọc."
+              : "Chưa có cửa hàng nào mua gói dịch vụ."}
           </p>
         )}
       </div>

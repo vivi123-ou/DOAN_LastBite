@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listCombosForAdmin } from "@/lib/repositories/admin.repository";
+import type { ComboStatus } from "@/lib/domain/combo";
 import { Badge } from "@/components/ui/badge";
+import { AdminFilterBar } from "@/components/admin/admin-filter-bar";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Nháp",
@@ -9,6 +11,12 @@ const STATUS_LABEL: Record<string, string> = {
   sold_out: "Hết hàng",
   paused: "Tạm dừng",
 };
+
+const VALID_STATUSES: ComboStatus[] = ["draft", "active", "locked", "sold_out", "paused"];
+
+function parseStatus(raw: string | undefined): ComboStatus | undefined {
+  return VALID_STATUSES.find((s) => s === raw);
+}
 
 // Module-scope helper, not a `Date.now()` read hoisted into the component
 // body — same shape as dashboard/combos/page.tsx's own displayStatus(),
@@ -25,17 +33,44 @@ function isExpired(bestBefore: string): boolean {
 // system, not just spot-check one store at a time. Same "display-only,
 // computed fresh, never a stored discount step" price shown everywhere
 // else in the app (combo.repository.ts's computeStockBasedDecayPrice()).
-export default async function AdminCombosPage() {
-  const combos = await listCombosForAdmin(createAdminClient());
+export default async function AdminCombosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>;
+}) {
+  const { q, status: rawStatus } = await searchParams;
+  const status = parseStatus(rawStatus);
+  const combos = await listCombosForAdmin(createAdminClient(), { search: q, status });
 
   return (
     <div className="space-y-4 px-4 py-8">
       <div>
         <h1 className="text-2xl font-bold">Combo toàn hệ thống</h1>
         <p className="text-sm text-muted-foreground">
-          200 combo được đăng gần nhất, giá hiển thị là giá động tính tại thời điểm tải trang này.
+          200 combo được đăng gần nhất khớp bộ lọc, giá hiển thị là giá động tính tại thời điểm tải
+          trang này.
         </p>
       </div>
+
+      <AdminFilterBar
+        searchPlaceholder="Tìm theo tên combo..."
+        searchDefaultValue={q}
+        selects={[
+          {
+            name: "status",
+            defaultValue: rawStatus ?? "",
+            options: [
+              { value: "", label: "Tất cả trạng thái" },
+              { value: "draft", label: "Nháp" },
+              { value: "active", label: "Đang bán" },
+              { value: "locked", label: "Đã khoá" },
+              { value: "sold_out", label: "Hết hàng" },
+              { value: "paused", label: "Tạm dừng" },
+            ],
+          },
+        ]}
+        hasActiveFilter={Boolean(q || status)}
+      />
 
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
@@ -87,7 +122,9 @@ export default async function AdminCombosPage() {
           </tbody>
         </table>
         {combos.length === 0 && (
-          <p className="py-10 text-center text-muted-foreground">Chưa có combo nào.</p>
+          <p className="py-10 text-center text-muted-foreground">
+            {q || status ? "Không tìm thấy combo nào khớp bộ lọc." : "Chưa có combo nào."}
+          </p>
         )}
       </div>
     </div>

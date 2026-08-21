@@ -4,6 +4,7 @@ import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { getById } from "@/lib/repositories/profile.repository";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +28,7 @@ function LoginForm() {
     setError(null);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       setError("Email hoặc mật khẩu không đúng.");
@@ -35,7 +36,14 @@ function LoginForm() {
       return;
     }
 
-    router.push(next);
+    // role='admin' is a "pure staff" account (no shopping — see
+    // add-to-cart-button.tsx's isAdmin prop) — landing on the customer
+    // homepage after login would just be a dead end for that account, so it
+    // always goes straight to /admin instead, same as how a real
+    // admin/staff login typically works. Overrides `next` on purpose: there
+    // is no legitimate customer-site destination for this role to resume.
+    const profile = await getById(supabase, data.user.id);
+    router.push(profile?.role === "admin" ? "/admin" : next);
     router.refresh();
   }
 
