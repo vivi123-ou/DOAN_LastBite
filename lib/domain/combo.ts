@@ -24,6 +24,11 @@ export interface Combo {
   // combo's own listed_at→best_before window `now` is — see
   // lib/pricing/strategies/stock-based-decay.strategy.ts.
   createdAt: string;
+  // Store-owner-chosen ceiling for dynamic pricing (0025_combo_max_discount.sql),
+  // percentage 10-70 — how deep this combo's price is ever allowed to drop.
+  // The continuous time×stock formula still decides the actual price at any
+  // given moment; this only bounds how far it can go.
+  maxDiscountPct: number;
   deliverySupported: boolean;
   pickupSupported: boolean;
   status: ComboStatus;
@@ -81,6 +86,8 @@ export interface CreateComboInput {
   originalPrice: number;
   initialStock: number;
   bestBeforeOverride?: Date;
+  // Store-owner-chosen dynamic-pricing ceiling — see Combo.maxDiscountPct.
+  maxDiscountPct: number;
   deliverySupported: boolean;
   pickupSupported: boolean;
   items: ComboItemInput[];

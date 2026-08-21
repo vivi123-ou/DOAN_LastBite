@@ -49,7 +49,14 @@ export default async function HomePage({
 
   return (
     <div className="mx-auto max-w-6xl space-y-10 px-4 py-8">
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-800 via-primary to-emerald-700 px-6 py-14 text-center">
+      <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-950 via-emerald-700 to-primary px-6 py-16 text-center">
+        {/* Soft glow blobs for depth — kept inside the green family (lime =
+            a lighter, fresher green, not an off-brand accent color) rather
+            than a flat 3-stop gradient. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -z-10 inset-0 bg-[radial-gradient(circle_at_25%_20%,theme(colors.lime.400/30%),transparent_55%),radial-gradient(circle_at_80%_85%,theme(colors.emerald.300/20%),transparent_50%)]"
+        />
         {/* Decorative leaf/tree silhouettes — no external image asset,
             just low-opacity lucide icons scattered behind the text. */}
         <Leaf
@@ -69,16 +76,17 @@ export default async function HomePage({
           className="pointer-events-none absolute right-[12%] top-2 size-16 rotate-45 text-white/10"
         />
 
-        <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-3">
+        <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-4">
+          <h1 className="font-display text-5xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-6xl">
+            LastBite
+          </h1>
           <span className="flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
             <Leaf className="size-3.5" />
-            Net Zero · Ăn ngon, giảm lãng phí
+            Net Zero - Ăn ngon, giảm lãng phí
           </span>
-          <h1 className="text-3xl font-bold text-white sm:text-4xl">
-            Đồ ăn ngon cuối ngày, giá tốt hơn — ngay gần bạn
-          </h1>
-          <p className="text-white/90">
-            Xem đúng món, đúng ảnh, đúng hạn dùng trước khi đặt. Không đoán mò, không rủi ro.
+          <p className="max-w-lg text-sm font-semibold tracking-wide text-white sm:text-base">
+            HỆ THỐNG KẾT NỐI CỬA HÀNG F&amp;B VÀ NGƯỜI TIÊU DÙNG ĐỂ GIẢI CỨU THỰC PHẨM TỒN CUỐI
+            NGÀY
           </p>
         </div>
       </section>

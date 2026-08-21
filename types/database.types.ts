@@ -115,6 +115,12 @@ export interface Database {
           delivery_supported: boolean;
           pickup_supported: boolean;
           pricing_strategy: string;
+          // Store-owner-chosen ceiling for dynamic pricing (0025) — the
+          // continuous time×stock formula still decides the actual price at
+          // any given moment; this only bounds how deep it's ever allowed
+          // to go. Percentage, 10-70, default 50 (matches the old hardcoded
+          // constant).
+          max_discount_pct: number;
           status: "draft" | "active" | "locked" | "sold_out" | "paused";
           created_at: string;
           updated_at: string;

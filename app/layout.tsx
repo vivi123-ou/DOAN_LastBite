@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Fredoka } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
@@ -16,6 +16,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Brand wordmark only ("LastBite" in the header + homepage hero) — a
+// rounded, friendly display face distinct from the body's Geist, matching
+// the casual food-tech-brand feel (Grab/Baemin-style) the user asked for.
+// Not applied to body text anywhere — Fredoka has no Vietnamese subset, and
+// every other string in this app is Vietnamese.
+const fredoka = Fredoka({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["600", "700"],
+});
+
 export const metadata: Metadata = {
   title: "LastBite — Combo cuối ngày, giảm giá xanh",
   description:
@@ -30,7 +41,7 @@ export default function RootLayout({
   return (
     <html
       lang="vi"
-      className={`${geistSans.variable} ${geistMono.variable} h-full scroll-smooth antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fredoka.variable} h-full scroll-smooth antialiased`}
     >
       <body
         className="min-h-full flex flex-col bg-background text-foreground"

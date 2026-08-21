@@ -19,6 +19,11 @@ import {
 import type { Category } from "@/lib/domain/category";
 import type { Combo, ComboItemInput } from "@/lib/domain/combo";
 import { suggestBestBefore } from "@/lib/pricing/lock-duration/lock-duration.policy";
+import {
+  MIN_MAX_DISCOUNT_PCT,
+  MAX_MAX_DISCOUNT_PCT,
+  DEFAULT_MAX_DISCOUNT_PCT,
+} from "@/lib/pricing/strategies/stock-based-decay.strategy";
 import { ComboImageUploader } from "@/app/(store)/dashboard/combos/_components/combo-image-uploader";
 import { TimeSelect } from "@/app/(store)/dashboard/combos/_components/time-select";
 import { createComboAction, updateComboAction } from "@/app/(store)/dashboard/combos/actions";
@@ -28,6 +33,17 @@ interface ComboFormProps {
   categories: Category[];
   initialCombo?: Combo;
 }
+
+// Shopee-style click-to-select chips instead of a slider — same pattern
+// already established for the price-band filter (site-search-filters.tsx)
+// and radius chips, kept consistent here per explicit feedback that a full
+// slider + paragraph felt bulky for a single number. Generated from the
+// shared min/max constants (step 10) rather than hardcoded, so this can't
+// silently drift out of range if those bounds ever change.
+const MAX_DISCOUNT_PCT_OPTIONS = Array.from(
+  { length: (MAX_MAX_DISCOUNT_PCT - MIN_MAX_DISCOUNT_PCT) / 10 + 1 },
+  (_, i) => MIN_MAX_DISCOUNT_PCT + i * 10
+);
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -98,6 +114,9 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
   const [description, setDescription] = useState(initialCombo?.description ?? "");
   const [originalPrice, setOriginalPrice] = useState(String(initialCombo?.originalPrice ?? ""));
   const [initialStock, setInitialStock] = useState(String(initialCombo?.initialStock ?? ""));
+  const [maxDiscountPct, setMaxDiscountPct] = useState(
+    initialCombo?.maxDiscountPct ?? DEFAULT_MAX_DISCOUNT_PCT
+  );
   const [deliverySupported, setDeliverySupported] = useState(
     initialCombo?.deliverySupported ?? false
   );
@@ -214,6 +233,7 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
       description: description || undefined,
       originalPrice: Number(originalPrice),
       initialStock: Number(initialStock),
+      maxDiscountPct,
       bestBeforeOverride:
         customBestBefore && bestBeforeDate && bestBeforeTime
           ? new Date(`${bestBeforeDate}T${bestBeforeTime}`).toISOString()
@@ -310,6 +330,29 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
             onChange={(e) => setInitialStock(e.target.value)}
           />
         </div>
+      </div>
+
+      <div className="space-y-2 rounded-md border p-4">
+        <Label>Mức giảm giá tối đa</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {MAX_DISCOUNT_PCT_OPTIONS.map((pct) => (
+            <button
+              key={pct}
+              type="button"
+              onClick={() => setMaxDiscountPct(pct)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                maxDiscountPct === pct
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input text-muted-foreground hover:border-primary hover:text-primary"
+              }`}
+            >
+              {pct}%
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Giá sẽ tự giảm dần theo thời gian bán, tối đa đến mức bạn chọn ở đây.
+        </p>
       </div>
 
       <div className="space-y-2 rounded-md border p-4">
