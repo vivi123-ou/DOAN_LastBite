@@ -70,6 +70,12 @@ export interface CreateVnpayPaymentInput {
   amount: number;
   ipAddr: string;
   returnUrl: string;
+  // Optional — defaults to the original "thanh toan don hang" wording for
+  // backward compatibility with the existing order-checkout caller.
+  // Subscription purchases (dashboard/subscription/actions.ts) pass their
+  // own text so the VNPay payment page doesn't misleadingly say "đơn hàng"
+  // for something that isn't one.
+  orderInfo?: string;
 }
 
 // Returns the full URL to redirect the customer's browser to — there's no
@@ -91,7 +97,7 @@ export function createVnpayPaymentUrl(input: CreateVnpayPaymentInput): string {
     // No Vietnamese diacritics — kept plain ASCII on purpose, same reasoning
     // as MoMo's orderInfo: one less thing that could differ in encoding
     // between what's signed and what VNPay re-derives on their end.
-    vnp_OrderInfo: `LastBite thanh toan don hang ${input.orderId}`,
+    vnp_OrderInfo: input.orderInfo ?? `LastBite thanh toan don hang ${input.orderId}`,
     vnp_OrderType: "other",
     // VNPay wants the smallest currency unit — VND has no subunit in
     // practice, but their API still requires amount * 100.

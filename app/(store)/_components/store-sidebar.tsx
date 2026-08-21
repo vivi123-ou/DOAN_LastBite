@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, LayoutDashboard, Package, Receipt, Store } from "lucide-react";
+import { ArrowLeft, CreditCard, LayoutDashboard, Package, Receipt, Store } from "lucide-react";
 
 const ITEMS = [
   { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/dashboard/combos", label: "Combo", icon: Package },
   { href: "/dashboard/orders", label: "Đơn hàng", icon: Receipt },
   { href: "/dashboard/store", label: "Thông tin cửa hàng", icon: Store },
+  { href: "/dashboard/subscription", label: "Gói dịch vụ", icon: CreditCard },
 ];
 
 // Vertical, persistent-sidebar version of the store nav (see

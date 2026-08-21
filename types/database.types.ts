@@ -431,6 +431,47 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["user_category_affinity"]["Row"]>;
         Relationships: [];
       };
+      subscription_plans: {
+        Row: {
+          id: string;
+          name: string;
+          price: number;
+          duration_days: number;
+          max_active_combos: number | null;
+          description: string | null;
+          is_default: boolean;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["subscription_plans"]["Row"]> & {
+          name: string;
+          price: number;
+          duration_days: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["subscription_plans"]["Row"]>;
+        Relationships: [];
+      };
+      store_subscriptions: {
+        Row: {
+          id: string;
+          store_id: string;
+          plan_id: string;
+          status: "pending_payment" | "active" | "expired" | "cancelled";
+          started_at: string | null;
+          expires_at: string | null;
+          payment_method: "vnpay" | "momo" | null;
+          provider_txn_id: string | null;
+          amount_paid: number | null;
+          renewal_notified_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["store_subscriptions"]["Row"]> & {
+          store_id: string;
+          plan_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["store_subscriptions"]["Row"]>;
+        Relationships: [];
+      };
       co2_factors: {
         Row: {
           id: string;

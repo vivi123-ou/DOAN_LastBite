@@ -48,8 +48,12 @@ export default async function AdminOverviewPage() {
           hint={`${stats.completedOrders} đã hoàn tất`}
         />
         <StatCard
-          label="Doanh thu (đơn hoàn tất)"
+          label="Doanh thu đơn hàng (đơn hoàn tất)"
           value={`${stats.totalRevenue.toLocaleString("vi-VN")}đ`}
+        />
+        <StatCard
+          label="Doanh thu gói dịch vụ"
+          value={`${stats.subscriptionRevenue.toLocaleString("vi-VN")}đ`}
         />
         <StatCard
           label="CO2 đã giảm"

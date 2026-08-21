@@ -24,6 +24,7 @@ export async function getOverviewStats(admin: SupabaseClient<Database>): Promise
     { data: orders, error: ordersError },
     { data: ledgerRows, error: ledgerError },
     { count: openReportsCount, error: reportsError },
+    { data: subscriptionRows, error: subscriptionsError },
   ] = await Promise.all([
     admin.from("profiles").select("id", { count: "exact", head: true }),
     admin.from("stores").select("verification_status"),
@@ -34,12 +35,14 @@ export async function getOverviewStats(admin: SupabaseClient<Database>): Promise
       .select("id", { count: "exact", head: true })
       .eq("kind", "report")
       .is("resolved_at", null),
+    admin.from("store_subscriptions").select("amount_paid").eq("status", "active"),
   ]);
   if (usersError) throw usersError;
   if (storesError) throw storesError;
   if (ordersError) throw ordersError;
   if (ledgerError) throw ledgerError;
   if (reportsError) throw reportsError;
+  if (subscriptionsError) throw subscriptionsError;
 
   const completedOrders = (orders ?? []).filter((o) => o.status === "completed");
   const totalCo2SavedKg = (ledgerRows ?? []).reduce((sum, r) => sum + r.co2_saved_kg, 0);
@@ -52,6 +55,7 @@ export async function getOverviewStats(admin: SupabaseClient<Database>): Promise
     totalOrders: (orders ?? []).length,
     completedOrders: completedOrders.length,
     totalRevenue: completedOrders.reduce((sum, o) => sum + o.total_amount, 0),
+    subscriptionRevenue: (subscriptionRows ?? []).reduce((sum, r) => sum + (r.amount_paid ?? 0), 0),
     totalCo2SavedKg,
     totalFoodRescuedKg: totalCo2SavedKg / 2.5,
     openReportsCount: openReportsCount ?? 0,
