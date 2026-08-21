@@ -351,8 +351,7 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
           ))}
         </div>
         <p className="text-xs text-muted-foreground">
-          Mức giảm khi combo gần hết hạn mà còn ế — giá vẫn tự giảm dần theo thời gian, đây chỉ là
-          mức trần.
+          Giá sẽ tự giảm dần theo thời gian bán, tối đa đến mức bạn chọn ở đây.
         </p>
       </div>
 

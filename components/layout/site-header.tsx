@@ -30,7 +30,7 @@ export async function SiteHeader() {
 
         <Link
           href="/"
-          className="flex shrink-0 items-center gap-2 font-bold text-lg text-primary"
+          className="flex shrink-0 items-center gap-2 font-display text-lg font-semibold text-primary"
         >
           <Leaf className="size-6" />
           <span className="hidden sm:inline">LastBite</span>
