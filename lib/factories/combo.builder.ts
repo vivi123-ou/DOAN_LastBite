@@ -16,6 +16,7 @@ export interface BuiltCombo {
     initial_stock: number;
     remaining_stock: number;
     best_before: string;
+    max_discount_pct: number;
     delivery_supported: boolean;
     pickup_supported: boolean;
   };
@@ -59,6 +60,7 @@ export class ComboBuilder {
         initial_stock: input.initialStock,
         remaining_stock: input.initialStock,
         best_before: bestBefore.toISOString(),
+        max_discount_pct: input.maxDiscountPct,
         delivery_supported: input.deliverySupported,
         pickup_supported: input.pickupSupported,
       },

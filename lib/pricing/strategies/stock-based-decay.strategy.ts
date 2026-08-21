@@ -32,12 +32,24 @@ import type { PricingStrategy } from "@/lib/pricing/strategies/pricing-strategy.
 // applied as a separate discount on top at checkout.
 //
 // Keep this formula in sync with dynamic_combo_price() in
-// supabase/migrations/0017_dynamic_pricing_multiplicative.sql — that SQL
-// copy exists because nearby_combos()/search_combos() are index-backed
-// PostGIS RPCs (.claude/rules/database-and-schema.md) and can't call into
-// this TS class; duplicated on purpose, same accepted-tradeoff shape as the
-// sequential stock decrement noted in order.builder.ts.
-const MAX_DISCOUNT_PCT = 0.5;
+// supabase/migrations/0025_combo_max_discount.sql — that SQL copy exists
+// because nearby_combos()/search_combos() are index-backed PostGIS RPCs
+// (.claude/rules/database-and-schema.md) and can't call into this TS class;
+// duplicated on purpose, same accepted-tradeoff shape as the sequential
+// stock decrement noted in order.builder.ts.
+//
+// The ceiling used to be a single hardcoded 0.5 (50%) for every combo —
+// now it's `combos.max_discount_pct`, a store-owner-chosen value per combo
+// (10-70%, see combo-form.tsx). Deliberately still just ONE number, set
+// once at listing time, not a live per-hour dial the store can spin — the
+// mandatory business rule (business-rules.md: "never a fixed-time discount
+// step... so customers can't wait out the clock") only cares that the
+// *moment-to-moment* price stays unpredictable; a store picking how deep
+// their own ceiling goes doesn't reintroduce that problem, since the
+// continuous time×stock curve below the ceiling is untouched.
+export const MIN_MAX_DISCOUNT_PCT = 10;
+export const MAX_MAX_DISCOUNT_PCT = 70;
+export const DEFAULT_MAX_DISCOUNT_PCT = 50;
 
 export interface DecayPricingInput {
   originalPrice: number;
@@ -45,6 +57,9 @@ export interface DecayPricingInput {
   remainingStock: number;
   createdAt: string | Date;
   bestBefore: string | Date;
+  // Percentage (10-70), not a fraction — matches how it's stored in
+  // combos.max_discount_pct and how the SQL copy takes it.
+  maxDiscountPct: number;
 }
 
 function clamp01(n: number): number {
@@ -75,7 +90,7 @@ export function computeStockBasedDecayPrice(
     input.initialStock <= 0 ? 0 : clamp01(input.remainingStock / input.initialStock);
 
   const decayFactor = timeUrgency * stockPressure;
-  const raw = input.originalPrice * (1 - MAX_DISCOUNT_PCT * decayFactor);
+  const raw = input.originalPrice * (1 - (input.maxDiscountPct / 100) * decayFactor);
 
   // Round to the nearest 500đ for a clean displayed price.
   return Math.round(raw / 500) * 500;
@@ -90,6 +105,7 @@ export class StockBasedDecayStrategy implements PricingStrategy {
         remainingStock: combo.remainingStock,
         createdAt: combo.createdAt,
         bestBefore: combo.bestBefore,
+        maxDiscountPct: combo.maxDiscountPct,
       },
       now
     );

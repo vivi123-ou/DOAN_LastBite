@@ -19,6 +19,11 @@ import {
 import type { Category } from "@/lib/domain/category";
 import type { Combo, ComboItemInput } from "@/lib/domain/combo";
 import { suggestBestBefore } from "@/lib/pricing/lock-duration/lock-duration.policy";
+import {
+  MIN_MAX_DISCOUNT_PCT,
+  MAX_MAX_DISCOUNT_PCT,
+  DEFAULT_MAX_DISCOUNT_PCT,
+} from "@/lib/pricing/strategies/stock-based-decay.strategy";
 import { ComboImageUploader } from "@/app/(store)/dashboard/combos/_components/combo-image-uploader";
 import { TimeSelect } from "@/app/(store)/dashboard/combos/_components/time-select";
 import { createComboAction, updateComboAction } from "@/app/(store)/dashboard/combos/actions";
@@ -98,6 +103,9 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
   const [description, setDescription] = useState(initialCombo?.description ?? "");
   const [originalPrice, setOriginalPrice] = useState(String(initialCombo?.originalPrice ?? ""));
   const [initialStock, setInitialStock] = useState(String(initialCombo?.initialStock ?? ""));
+  const [maxDiscountPct, setMaxDiscountPct] = useState(
+    initialCombo?.maxDiscountPct ?? DEFAULT_MAX_DISCOUNT_PCT
+  );
   const [deliverySupported, setDeliverySupported] = useState(
     initialCombo?.deliverySupported ?? false
   );
@@ -214,6 +222,7 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
       description: description || undefined,
       originalPrice: Number(originalPrice),
       initialStock: Number(initialStock),
+      maxDiscountPct,
       bestBeforeOverride:
         customBestBefore && bestBeforeDate && bestBeforeTime
           ? new Date(`${bestBeforeDate}T${bestBeforeTime}`).toISOString()
@@ -310,6 +319,28 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
             onChange={(e) => setInitialStock(e.target.value)}
           />
         </div>
+      </div>
+
+      <div className="space-y-2 rounded-md border p-4">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="max-discount-pct">Mức giảm giá tối đa</Label>
+          <span className="text-sm font-semibold text-primary">{maxDiscountPct}%</span>
+        </div>
+        <input
+          id="max-discount-pct"
+          type="range"
+          min={MIN_MAX_DISCOUNT_PCT}
+          max={MAX_MAX_DISCOUNT_PCT}
+          step={5}
+          value={maxDiscountPct}
+          onChange={(e) => setMaxDiscountPct(Number(e.target.value))}
+          className="w-full accent-primary"
+        />
+        <p className="text-xs text-muted-foreground">
+          Combo sẽ tự động giảm giá dần theo thời gian còn lại và số lượng còn tồn — đây là mức
+          giảm <strong>tối đa</strong> (lúc gần hết hạn mà vẫn còn ế), không phải mức giảm cố định
+          áp dụng ngay. Mặc định {DEFAULT_MAX_DISCOUNT_PCT}%.
+        </p>
       </div>
 
       <div className="space-y-2 rounded-md border p-4">

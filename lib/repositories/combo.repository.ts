@@ -44,7 +44,7 @@ export async function listActiveByStorePaginated(
   const { data: rows, error, count } = await client
     .from("combos")
     .select(
-      "id, name, current_price, original_price, best_before, initial_stock, remaining_stock, created_at",
+      "id, name, current_price, original_price, best_before, initial_stock, remaining_stock, created_at, max_discount_pct",
       { count: "exact" }
     )
     .eq("store_id", storeId)
@@ -83,6 +83,7 @@ export async function listActiveByStorePaginated(
         remainingStock: r.remaining_stock,
         createdAt: r.created_at,
         bestBefore: r.best_before,
+        maxDiscountPct: r.max_discount_pct,
       }),
       originalPrice: r.original_price,
       bestBefore: r.best_before,
@@ -189,7 +190,7 @@ export async function getSnapshotsByIds(
   const { data, error } = await client
     .from("combos")
     .select(
-      "id, store_id, name, current_price, original_price, status, best_before, remaining_stock, initial_stock, created_at, delivery_supported, pickup_supported"
+      "id, store_id, name, current_price, original_price, status, best_before, remaining_stock, initial_stock, created_at, delivery_supported, pickup_supported, max_discount_pct"
     )
     .in("id", ids);
   if (error) throw error;
@@ -210,6 +211,7 @@ export async function getSnapshotsByIds(
       remainingStock: row.remaining_stock,
       createdAt: row.created_at,
       bestBefore: row.best_before,
+      maxDiscountPct: row.max_discount_pct,
     }),
     status: row.status,
     bestBefore: row.best_before,
@@ -308,6 +310,7 @@ async function hydrate(
     remainingStock: row.remaining_stock,
     bestBefore: row.best_before,
     createdAt: row.created_at,
+    maxDiscountPct: row.max_discount_pct,
     deliverySupported: row.delivery_supported,
     pickupSupported: row.pickup_supported,
     status: row.status,

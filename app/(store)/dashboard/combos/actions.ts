@@ -35,6 +35,7 @@ async function buildComboForCurrentStore(input: unknown) {
       originalPrice: parsed.originalPrice,
       initialStock: parsed.initialStock,
       bestBeforeOverride: parsed.bestBeforeOverride ? new Date(parsed.bestBeforeOverride) : undefined,
+      maxDiscountPct: parsed.maxDiscountPct,
       deliverySupported: parsed.deliverySupported,
       pickupSupported: parsed.pickupSupported,
       items: parsed.items,

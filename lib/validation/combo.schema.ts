@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  MIN_MAX_DISCOUNT_PCT,
+  MAX_MAX_DISCOUNT_PCT,
+  DEFAULT_MAX_DISCOUNT_PCT,
+} from "@/lib/pricing/strategies/stock-based-decay.strategy";
 
 export const comboItemSchema = z.object({
   itemName: z.string().trim().min(1, "Tên món không được để trống").max(120),
@@ -37,6 +42,14 @@ export const createComboSchema = z
       .refine((value) => !value || new Date(value).getTime() > Date.now() - 5 * 60_000, {
         message: "Giờ khoá bán không được ở quá khứ",
       }),
+    // Store-owner-chosen dynamic-pricing ceiling — see
+    // stock-based-decay.strategy.ts for why this is a one-time-set ceiling,
+    // not a live per-hour dial.
+    maxDiscountPct: z.coerce
+      .number()
+      .min(MIN_MAX_DISCOUNT_PCT, `Mức giảm tối đa tối thiểu ${MIN_MAX_DISCOUNT_PCT}%`)
+      .max(MAX_MAX_DISCOUNT_PCT, `Mức giảm tối đa tối đa ${MAX_MAX_DISCOUNT_PCT}%`)
+      .default(DEFAULT_MAX_DISCOUNT_PCT),
     deliverySupported: z.boolean(),
     pickupSupported: z.boolean(),
     items: z.array(comboItemSchema).min(1, "Combo phải có ít nhất 1 món"),
