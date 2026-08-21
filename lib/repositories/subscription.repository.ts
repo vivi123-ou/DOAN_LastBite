@@ -5,6 +5,7 @@ import type {
   EffectiveSubscription,
   StoreSubscription,
   AdminStoreSubscriptionSummary,
+  SubscriptionStatus,
 } from "@/lib/domain/subscription";
 import { getOwnerIdById } from "@/lib/repositories/store.repository";
 import { create as createNotification } from "@/lib/repositories/notification.repository";
@@ -348,12 +349,24 @@ export async function checkAndNotifyExpiringSoon(
     .eq("id", activeRow.id);
 }
 
+export interface AdminSubscriptionListFilter {
+  search?: string; // store name
+  status?: SubscriptionStatus;
+}
+
 // Admin's /admin/subscriptions list — latest row per store, JS-grouped
 // (small aggregation over a narrow query, same preference already
 // established for order.repository.ts's getTopPurchasedCategoryIds() and
 // friend.repository.ts's listFriendships()) rather than a dedicated RPC.
+// `search`/`status` are both applied *after* the "latest row per store"
+// reduction, in JS — `status` specifically can't be pushed into the initial
+// query the way listPayoutsForAdmin's can, since this list means "stores
+// whose *current* (latest) status is X," not "stores that ever had any row
+// with status X" — filtering the raw rows first would change that meaning.
+// `search` needs the join (store names) resolved first regardless.
 export async function listStoreSubscriptionsForAdmin(
-  admin: SupabaseClient<Database>
+  admin: SupabaseClient<Database>,
+  filter: AdminSubscriptionListFilter = {}
 ): Promise<AdminStoreSubscriptionSummary[]> {
   const { data: rows, error } = await admin
     .from("store_subscriptions")
@@ -366,7 +379,8 @@ export async function listStoreSubscriptionsForAdmin(
   for (const r of rows) {
     if (!latestByStore.has(r.store_id)) latestByStore.set(r.store_id, r);
   }
-  const latestRows = [...latestByStore.values()];
+  let latestRows = [...latestByStore.values()];
+  if (filter.status) latestRows = latestRows.filter((r) => r.status === filter.status);
 
   const storeIds = latestRows.map((r) => r.store_id);
   const planIds = [...new Set(latestRows.map((r) => r.plan_id))];
@@ -380,7 +394,7 @@ export async function listStoreSubscriptionsForAdmin(
   const storeNameById = new Map(stores.map((s) => [s.id, s.name]));
   const planNameById = new Map(plans.map((p) => [p.id, p.name]));
 
-  return latestRows.map((r) => ({
+  let results = latestRows.map((r) => ({
     storeId: r.store_id,
     storeName: storeNameById.get(r.store_id) ?? "",
     planName: planNameById.get(r.plan_id) ?? "",
@@ -389,4 +403,11 @@ export async function listStoreSubscriptionsForAdmin(
     expiresAt: r.expires_at,
     amountPaid: r.amount_paid,
   }));
+
+  if (filter.search) {
+    const needle = filter.search.toLowerCase();
+    results = results.filter((r) => r.storeName.toLowerCase().includes(needle));
+  }
+
+  return results;
 }

@@ -1,7 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listStoresForAdmin } from "@/lib/repositories/admin.repository";
+import type { AdminStoreSummary } from "@/lib/domain/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AdminFilterBar } from "@/components/admin/admin-filter-bar";
 import { StoreActions } from "@/app/(admin)/admin/stores/_components/store-actions";
 
 const VERIFICATION_LABEL: Record<string, string> = {
@@ -18,8 +20,25 @@ const VERIFICATION_VARIANT: Record<string, "default" | "secondary" | "destructiv
   suspended: "destructive",
 };
 
-export default async function AdminStoresPage() {
-  const stores = await listStoresForAdmin(createAdminClient());
+const VALID_STATUSES: AdminStoreSummary["verificationStatus"][] = [
+  "pending",
+  "verified",
+  "rejected",
+  "suspended",
+];
+
+function parseStatus(raw: string | undefined): AdminStoreSummary["verificationStatus"] | undefined {
+  return VALID_STATUSES.find((s) => s === raw);
+}
+
+export default async function AdminStoresPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>;
+}) {
+  const { q, status: rawStatus } = await searchParams;
+  const status = parseStatus(rawStatus);
+  const stores = await listStoresForAdmin(createAdminClient(), { search: q, status });
 
   return (
     <div className="space-y-4 px-4 py-8">
@@ -30,8 +49,29 @@ export default async function AdminStoresPage() {
         </p>
       </div>
 
+      <AdminFilterBar
+        searchPlaceholder="Tìm theo tên cửa hàng..."
+        searchDefaultValue={q}
+        selects={[
+          {
+            name: "status",
+            defaultValue: rawStatus ?? "",
+            options: [
+              { value: "", label: "Tất cả trạng thái" },
+              { value: "pending", label: "Chờ duyệt" },
+              { value: "verified", label: "Đã duyệt" },
+              { value: "rejected", label: "Đã từ chối" },
+              { value: "suspended", label: "Tạm ngưng" },
+            ],
+          },
+        ]}
+        hasActiveFilter={Boolean(q || status)}
+      />
+
       {stores.length === 0 ? (
-        <p className="py-10 text-center text-muted-foreground">Chưa có cửa hàng nào.</p>
+        <p className="py-10 text-center text-muted-foreground">
+          {q || status ? "Không tìm thấy cửa hàng nào khớp bộ lọc." : "Chưa có cửa hàng nào."}
+        </p>
       ) : (
         <div className="space-y-3">
           {stores.map((store) => (

@@ -9,6 +9,8 @@ import type {
 } from "@/lib/domain/admin";
 import { computeStockBasedDecayPrice } from "@/lib/pricing/strategies/stock-based-decay.strategy";
 import { getCommissionConfig } from "@/lib/repositories/commission.repository";
+import type { ComboStatus } from "@/lib/domain/combo";
+import type { UserRole } from "@/lib/domain/profile";
 
 // Every function in this file requires the service-role admin client —
 // an admin genuinely needs to read/act across every store and customer
@@ -83,11 +85,32 @@ export async function getOverviewStats(admin: SupabaseClient<Database>): Promise
   };
 }
 
-export async function listStoresForAdmin(admin: SupabaseClient<Database>): Promise<AdminStoreSummary[]> {
-  const { data, error } = await admin
+export interface AdminStoreListFilter {
+  search?: string;
+  status?: AdminStoreSummary["verificationStatus"];
+}
+
+// `search`/`status` are applied server-side, before any row limit — this
+// list has none today, but combos/users below do, and filtering has to
+// happen inside the query (not after fetching a capped page) or a match
+// outside that capped window would silently never be findable. `ilike`
+// against a raw (non-unaccented) `name` rather than the trigram-indexed
+// `f_unaccent` expression the customer-facing search uses
+// (database-and-schema.md) — deliberate: this is an internal admin tool
+// over a dataset expected to stay small for this capstone's scope, not a
+// customer-facing feature graded on search performance.
+export async function listStoresForAdmin(
+  admin: SupabaseClient<Database>,
+  filter: AdminStoreListFilter = {}
+): Promise<AdminStoreSummary[]> {
+  let query = admin
     .from("stores")
     .select("id, name, address_line, verification_status, is_active, created_at, owner_id")
     .order("created_at", { ascending: false });
+  if (filter.search) query = query.ilike("name", `%${filter.search}%`);
+  if (filter.status) query = query.eq("verification_status", filter.status);
+
+  const { data, error } = await query;
   if (error) throw error;
   if (data.length === 0) return [];
 
@@ -128,18 +151,32 @@ export async function updateStoreActive(
   if (error) throw error;
 }
 
+export interface AdminComboListFilter {
+  search?: string;
+  status?: ComboStatus;
+}
+
 // Read-only monitor — no write path here on purpose; a store's own owner
 // still manages their combos through the existing /dashboard/combos flow.
 // Limited to the 200 most recent so this stays a quick system-wide glance,
-// not a full paginated catalog browser.
-export async function listCombosForAdmin(admin: SupabaseClient<Database>): Promise<AdminComboSummary[]> {
-  const { data, error } = await admin
+// not a full paginated catalog browser — `search`/`status` are applied
+// *before* that `.limit(200)`, so a match older than the 200 most-recent
+// combos is still findable (filtering after the fact would silently miss
+// it, since it would never even be fetched).
+export async function listCombosForAdmin(
+  admin: SupabaseClient<Database>,
+  filter: AdminComboListFilter = {}
+): Promise<AdminComboSummary[]> {
+  let query = admin
     .from("combos")
     .select(
       "id, name, original_price, initial_stock, remaining_stock, created_at, best_before, status, store_id, max_discount_pct"
     )
-    .order("created_at", { ascending: false })
-    .limit(200);
+    .order("created_at", { ascending: false });
+  if (filter.search) query = query.ilike("name", `%${filter.search}%`);
+  if (filter.status) query = query.eq("status", filter.status);
+
+  const { data, error } = await query.limit(200);
   if (error) throw error;
   if (data.length === 0) return [];
 
@@ -171,12 +208,29 @@ export async function listCombosForAdmin(admin: SupabaseClient<Database>): Promi
   }));
 }
 
-export async function listReportsForAdmin(admin: SupabaseClient<Database>): Promise<AdminReportSummary[]> {
-  const { data, error } = await admin
+export interface AdminReportListFilter {
+  // Matches against comboName/storeName/customerName/comment — all only
+  // known after the join below, so unlike the filters above this one is
+  // applied in JS at the end, not in the initial SQL query. Safe here
+  // (unlike listCombosForAdmin/listUsersForAdmin) because this query has no
+  // row cap to filter around — every report is always fetched.
+  search?: string;
+  resolved?: "open" | "resolved";
+}
+
+export async function listReportsForAdmin(
+  admin: SupabaseClient<Database>,
+  filter: AdminReportListFilter = {}
+): Promise<AdminReportSummary[]> {
+  let query = admin
     .from("combo_reviews")
     .select("id, comment, created_at, resolved_at, admin_note, combo_id, store_id, customer_id")
     .eq("kind", "report")
     .order("created_at", { ascending: false });
+  if (filter.resolved === "open") query = query.is("resolved_at", null);
+  if (filter.resolved === "resolved") query = query.not("resolved_at", "is", null);
+
+  const { data, error } = await query;
   if (error) throw error;
   if (data.length === 0) return [];
 
@@ -201,7 +255,7 @@ export async function listReportsForAdmin(admin: SupabaseClient<Database>): Prom
   const storeNameById = new Map(stores.map((s) => [s.id, s.name]));
   const customerNameById = new Map(customers.map((c) => [c.id, c.full_name]));
 
-  return data.map((r) => ({
+  let results = data.map((r) => ({
     id: r.id,
     comboName: comboNameById.get(r.combo_id) ?? "",
     storeName: storeNameById.get(r.store_id) ?? "",
@@ -211,6 +265,19 @@ export async function listReportsForAdmin(admin: SupabaseClient<Database>): Prom
     resolvedAt: r.resolved_at,
     adminNote: r.admin_note,
   }));
+
+  if (filter.search) {
+    const needle = filter.search.toLowerCase();
+    results = results.filter(
+      (r) =>
+        r.comboName.toLowerCase().includes(needle) ||
+        r.storeName.toLowerCase().includes(needle) ||
+        (r.customerName?.toLowerCase().includes(needle) ?? false) ||
+        (r.comment?.toLowerCase().includes(needle) ?? false)
+    );
+  }
+
+  return results;
 }
 
 export async function resolveReport(
@@ -225,16 +292,29 @@ export async function resolveReport(
   if (error) throw error;
 }
 
+export interface AdminUserListFilter {
+  search?: string;
+  role?: UserRole;
+}
+
 // Plain-JS order-count aggregation over the same `orders` table, same
 // "small aggregation over a narrow RPC" preference already established for
 // order.repository.ts's getTopPurchasedCategoryIds(). Limited to the 200
-// most recently created accounts.
-export async function listUsersForAdmin(admin: SupabaseClient<Database>): Promise<AdminUserSummary[]> {
-  const { data: profiles, error } = await admin
+// most recently created accounts — `search`/`role` applied before that
+// limit, same "filter inside the query, not after the cap" reasoning as
+// listCombosForAdmin() above.
+export async function listUsersForAdmin(
+  admin: SupabaseClient<Database>,
+  filter: AdminUserListFilter = {}
+): Promise<AdminUserSummary[]> {
+  let query = admin
     .from("profiles")
     .select("id, full_name, role, net_zero_points, created_at")
-    .order("created_at", { ascending: false })
-    .limit(200);
+    .order("created_at", { ascending: false });
+  if (filter.search) query = query.ilike("full_name", `%${filter.search}%`);
+  if (filter.role) query = query.eq("role", filter.role);
+
+  const { data: profiles, error } = await query.limit(200);
   if (error) throw error;
   if (profiles.length === 0) return [];
 

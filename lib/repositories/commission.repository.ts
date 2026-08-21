@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
-import type { CommissionConfig, StoreCommissionReportRow, StorePayout } from "@/lib/domain/commission";
+import type {
+  CommissionConfig,
+  StoreCommissionReportRow,
+  StorePayout,
+  PayoutStatus,
+} from "@/lib/domain/commission";
 
 // Config is a genuinely public, same-actor-safe read (any signed-in store
 // owner should be able to see the rate they're charged — same transparency
@@ -237,11 +242,24 @@ export async function markPayoutPaid(
   if (error) throw error;
 }
 
-export async function listPayoutsForAdmin(admin: SupabaseClient<Database>): Promise<StorePayout[]> {
-  const { data, error } = await admin
-    .from("store_payouts")
-    .select("*")
-    .order("created_at", { ascending: false });
+export interface AdminPayoutListFilter {
+  search?: string; // store name
+  status?: PayoutStatus;
+}
+
+// `status` is applied in the initial query — unlike listStoreSubscriptionsForAdmin's
+// "latest row per store" case above, every store_payouts row is already its
+// own real, independent reconciliation event (no dedup happening here), so
+// filtering the raw rows by status doesn't change the meaning. `search`
+// (store name) still needs the join resolved first.
+export async function listPayoutsForAdmin(
+  admin: SupabaseClient<Database>,
+  filter: AdminPayoutListFilter = {}
+): Promise<StorePayout[]> {
+  let query = admin.from("store_payouts").select("*").order("created_at", { ascending: false });
+  if (filter.status) query = query.eq("status", filter.status);
+
+  const { data, error } = await query;
   if (error) throw error;
   if (data.length === 0) return [];
 
@@ -253,7 +271,14 @@ export async function listPayoutsForAdmin(admin: SupabaseClient<Database>): Prom
   if (storesError) throw storesError;
   const storeNameById = new Map(stores.map((s) => [s.id, s.name]));
 
-  return data.map((r) => mapPayout(r, storeNameById.get(r.store_id) ?? ""));
+  let results = data.map((r) => mapPayout(r, storeNameById.get(r.store_id) ?? ""));
+
+  if (filter.search) {
+    const needle = filter.search.toLowerCase();
+    results = results.filter((r) => r.storeName.toLowerCase().includes(needle));
+  }
+
+  return results;
 }
 
 // Store's own payout/reconciliation history — regular client,
