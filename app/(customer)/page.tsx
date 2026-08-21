@@ -77,19 +77,16 @@ export default async function HomePage({
         />
 
         <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-4">
+          <h1 className="font-display text-5xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-6xl">
+            LastBite
+          </h1>
           <span className="flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
             <Leaf className="size-3.5" />
             Net Zero · Ăn ngon, giảm lãng phí
           </span>
-          <h1 className="font-display text-5xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-6xl">
-            LastBite
-          </h1>
           <p className="max-w-lg text-sm font-semibold tracking-wide text-white sm:text-base">
-            LASTBITE · KẾT NỐI CỬA HÀNG F&amp;B VÀ NGƯỜI TIÊU DÙNG ĐỂ GIẢI CỨU THỰC PHẨM TỒN CUỐI
+            HỆ THỐNG · KẾT NỐI CỬA HÀNG F&amp;B VÀ NGƯỜI TIÊU DÙNG ĐỂ GIẢI CỨU THỰC PHẨM TỒN CUỐI
             NGÀY
-          </p>
-          <p className="text-white/80">
-            Xem đúng món, đúng ảnh, đúng hạn dùng trước khi đặt. Không đoán mò, không rủi ro.
           </p>
         </div>
       </section>
