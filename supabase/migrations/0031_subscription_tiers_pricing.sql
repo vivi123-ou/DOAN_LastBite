@@ -1,8 +1,14 @@
 -- Adopts the advisor-reviewed pricing table: Basic 149k/tháng (was 99k),
--- Premium 349k/tháng (was 299k), plus a yearly billing option for each
--- (Basic 1.290k/năm, Premium 2.990k/năm — confirmed with the user; the
--- "299k/năm" first floated for Premium didn't come close to covering this
--- app's real infra cost, see the reasoning given directly to the user).
+-- Premium 349k/tháng (was 299k). Only Basic gets a yearly billing option
+-- (1.290k/năm) — deliberately not Premium. Modeled directly on how Claude's
+-- own real pricing works (Claude Pro has an annual option, Claude Max does
+-- not, month-to-month only): a discount to lock in commitment makes sense
+-- on the higher-volume mid tier, less so on the top tier where customers
+-- are already less price-sensitive and the platform would rather keep full
+-- margin/flexibility than discount a smaller pool of premium customers.
+-- (An earlier draft of this migration also added "Premium (năm)" at
+-- 2.990k/năm — removed per this same Claude-pricing-model comparison,
+-- discussed directly with the user before finalizing.)
 --
 -- A new `tier` column, not just relying on the `name` string, because a
 -- plan's *tier* (what features it unlocks) and its *display name/billing
@@ -28,14 +34,8 @@ where name = 'Premium';
 
 insert into subscription_plans
   (name, price, duration_days, max_active_combos, tier, description, is_default, is_active)
-values
-  (
-    'Basic (năm)', 1290000, 365, 20, 'basic',
-    'Giống hệt gói Basic, thanh toán theo năm — tiết kiệm hơn so với trả theo tháng.',
-    false, true
-  ),
-  (
-    'Premium (năm)', 2990000, 365, null, 'premium',
-    'Giống hệt gói Premium, thanh toán theo năm — tiết kiệm hơn so với trả theo tháng.',
-    false, true
-  );
+values (
+  'Basic (năm)', 1290000, 365, 20, 'basic',
+  'Giống hệt gói Basic, thanh toán theo năm — tiết kiệm hơn so với trả theo tháng.',
+  false, true
+);
