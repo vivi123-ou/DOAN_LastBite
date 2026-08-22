@@ -15,6 +15,10 @@ export interface AdminOverviewStats {
   // commission.repository.ts's computeCommissionReport()) — a third,
   // separate revenue stream from subscriptions.
   commissionRevenueThisMonth: number;
+  // Sum of amount_paid across every 'active' or 'expired' ad_bookings row
+  // (0035) — a fourth, separate revenue stream (Quảng cáo), distinct from
+  // orders/subscriptions/commission.
+  adRevenue: number;
   totalCo2SavedKg: number;
   // Derived from totalCo2SavedKg using the user's own stated conversion
   // (1kg food rescued ≈ 2.5kg CO2 avoided) — this app's co2_factors seed

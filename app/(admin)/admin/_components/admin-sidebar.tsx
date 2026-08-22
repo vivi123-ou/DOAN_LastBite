@@ -10,6 +10,7 @@ import {
   Package,
   Flag,
   ClipboardList,
+  Megaphone,
   Users,
   Percent,
   Wallet,
@@ -27,6 +28,7 @@ const ITEMS = [
   { href: "/admin/subscriptions", label: "Đăng ký gói", icon: ClipboardList, countKey: null },
   { href: "/admin/commission", label: "Hoa hồng", icon: Percent, countKey: null },
   { href: "/admin/payouts", label: "Đối soát", icon: Wallet, countKey: null },
+  { href: "/admin/ads", label: "Quảng cáo", icon: Megaphone, countKey: null },
   { href: "/admin/reports", label: "Báo cáo", icon: Flag, countKey: "openReports" as const },
   { href: "/admin/users", label: "Người dùng", icon: Users, countKey: null },
 ];

@@ -64,6 +64,14 @@ export function ComboCard({ combo, viewerStoreId, isAdmin }: ComboCardProps) {
           {discountPct > 0 && (
             <Badge className="absolute right-2 top-2 shadow-sm">-{discountPct}%</Badge>
           )}
+          {/* Real paid placement (0035), not a fabricated "bestseller" tag —
+              the combo genuinely has an active ad booking. Top-left, distinct
+              corner from the discount badge so the two never collide. */}
+          {combo.isSponsored && (
+            <Badge variant="secondary" className="absolute left-2 top-2 shadow-sm">
+              Được tài trợ
+            </Badge>
+          )}
         </div>
         <CardContent className="flex flex-col gap-2 p-4 pb-0">
           <h3 className="font-semibold leading-tight">{combo.name}</h3>

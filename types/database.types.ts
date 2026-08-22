@@ -387,6 +387,53 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["bulk_discount_tiers"]["Row"]>;
         Relationships: [];
       };
+      ad_placement_types: {
+        Row: {
+          id: string;
+          key: string;
+          name: string;
+          description: string | null;
+          price: number;
+          duration_days: number;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["ad_placement_types"]["Row"]> & {
+          key: string;
+          name: string;
+          price: number;
+          duration_days: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["ad_placement_types"]["Row"]>;
+        Relationships: [];
+      };
+      ad_bookings: {
+        Row: {
+          id: string;
+          store_id: string;
+          placement_type_id: string;
+          combo_id: string | null;
+          radius_m: number | null;
+          banner_image_url: string | null;
+          link_url: string | null;
+          status: "pending_payment" | "active" | "expired" | "cancelled";
+          starts_at: string | null;
+          ends_at: string | null;
+          amount_paid: number | null;
+          payment_method: "vnpay" | "momo" | null;
+          provider_txn_id: string | null;
+          impression_count: number;
+          click_count: number;
+          admin_note: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["ad_bookings"]["Row"]> & {
+          store_id: string;
+          placement_type_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["ad_bookings"]["Row"]>;
+        Relationships: [];
+      };
       notifications: {
         Row: {
           id: string;
@@ -583,6 +630,7 @@ export interface Database {
           image_url: string | null;
           delivery_supported: boolean;
           pickup_supported: boolean;
+          is_sponsored: boolean;
         }[];
       };
       search_combos: {
@@ -609,6 +657,7 @@ export interface Database {
           image_url: string | null;
           delivery_supported: boolean;
           pickup_supported: boolean;
+          is_sponsored: boolean;
         }[];
       };
       search_profiles: {

@@ -126,6 +126,7 @@ export async function listNearby(
     imageUrl: row.image_url,
     deliverySupported: row.delivery_supported,
     pickupSupported: row.pickup_supported,
+    isSponsored: row.is_sponsored,
   }));
 }
 
@@ -176,6 +177,7 @@ export async function search(
     imageUrl: row.image_url,
     deliverySupported: row.delivery_supported,
     pickupSupported: row.pickup_supported,
+    isSponsored: row.is_sponsored,
   }));
 }
 

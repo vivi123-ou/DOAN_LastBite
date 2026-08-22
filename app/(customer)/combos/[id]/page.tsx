@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Clock, MapPin, Package, Sparkles, Star, Store as StoreIcon, Truck } from "lucide-react";
+import { Clock, Gem, MapPin, Package, Sparkles, Star, Store as StoreIcon, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
@@ -8,6 +8,7 @@ import { getById } from "@/lib/repositories/combo.repository";
 import { getById as getProfileById } from "@/lib/repositories/profile.repository";
 import { getComboRatingSummary, listPublicForCombo } from "@/lib/repositories/review.repository";
 import { getEffectiveSubscription } from "@/lib/repositories/subscription.repository";
+import { hasActiveDiamondPartner, recordClickForCombo } from "@/lib/repositories/ad.repository";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,13 +47,22 @@ export default async function ComboDetailPage({
   // isPremiumStore: same resilience posture as ratingSummary/reviews above —
   // a subscription-lookup hiccup shouldn't block the one entry point into
   // the cart. Cheap, read-only check purely for the "Đối tác Premium" badge.
-  const [ratingSummary, reviews, isPremiumStore] = await Promise.all([
+  const admin = createAdminClient();
+  const [ratingSummary, reviews, isPremiumStore, isDiamondPartner] = await Promise.all([
     getComboRatingSummary(supabase, combo.id).catch(() => ({ averageRating: 0, reviewCount: 0 })),
     listPublicForCombo(supabase, combo.id).catch(() => []),
-    getEffectiveSubscription(createAdminClient(), combo.storeId)
+    getEffectiveSubscription(admin, combo.storeId)
       .then((e) => e.tier === "premium")
       .catch(() => false),
+    // Same resilience posture as the reads above — a missing 0035 table
+    // shouldn't block the one entry point into the cart either.
+    hasActiveDiamondPartner(admin, combo.storeId).catch(() => false),
   ]);
+
+  // Fire-and-forget click tracking (0035) — this page load itself IS the
+  // click-through from wherever the combo was shown (a sponsored card, a
+  // shared link, a notification). Best-effort: never blocks the page.
+  void recordClickForCombo(admin, combo.id).catch(() => {});
 
   const discountPct = Math.round(
     (1 - combo.currentPrice / Math.max(combo.originalPrice, 1)) * 100
@@ -107,6 +117,12 @@ export default async function ComboDetailPage({
             <Badge variant="outline" className="gap-1 text-primary">
               <Sparkles className="size-3" />
               Đối tác Premium
+            </Badge>
+          )}
+          {isDiamondPartner && (
+            <Badge variant="outline" className="gap-1 text-sky-600 dark:text-sky-400">
+              <Gem className="size-3" />
+              Đối tác Kim Cương
             </Badge>
           )}
         </p>
