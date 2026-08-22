@@ -6,9 +6,12 @@ import { listCategories } from "@/lib/repositories/category.repository";
 import { getTopPurchasedCategoryIds } from "@/lib/repositories/order.repository";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
 import { getById as getProfileById } from "@/lib/repositories/profile.repository";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { listActiveBanners } from "@/lib/repositories/ad.repository";
 import { CategoryRail } from "@/app/(customer)/_components/category-rail";
 import { ComboSections } from "@/app/(customer)/_components/combo-sections";
 import { SearchResultsSection } from "@/app/(customer)/_components/search-results-section";
+import { HomeBannerCarousel } from "@/app/(customer)/_components/home-banner-carousel";
 
 export default async function HomePage({
   searchParams,
@@ -53,6 +56,11 @@ export default async function HomePage({
   // add-to-cart-button.tsx's isAdmin prop).
   const viewerProfile = userId ? await getProfileById(supabase, userId) : null;
   const isAdmin = viewerProfile?.role === "admin";
+  // Real paid placements (0035), not a hardcoded promo — same "missing
+  // table degrades gracefully on a pre-existing critical page" resilience
+  // exception used elsewhere for a brand-new table, since this is the
+  // homepage itself.
+  const banners = await listActiveBanners(createAdminClient()).catch(() => []);
 
   return (
     <div className="mx-auto max-w-6xl space-y-10 px-4 py-8">
@@ -97,6 +105,8 @@ export default async function HomePage({
           </p>
         </div>
       </section>
+
+      <HomeBannerCarousel banners={banners} />
 
       <section className="space-y-3">
         <h2 className="text-xl font-bold sm:text-2xl">Khám phá theo loại combo</h2>

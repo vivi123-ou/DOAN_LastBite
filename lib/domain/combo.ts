@@ -63,6 +63,11 @@ export interface NearbyCombo {
   imageUrl: string | null;
   deliverySupported: boolean;
   pickupSupported: boolean;
+  // Has an active hot_deal/search_top/category_top ad booking (0035) —
+  // already boosted to the front of this exact result set by nearby_combos()/
+  // search_combos() themselves, this flag is purely for the "Được tài trợ"
+  // badge on the card, not something the client needs to re-sort by.
+  isSponsored: boolean;
 }
 
 // Slim shape for the map's store detail panel (store-detail-panel.tsx) —

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
 import { getCurrentPosition, type Coordinates } from "@/lib/geo/geolocation";
 import { ComboCarousel } from "@/components/combo/combo-carousel";
+import { recordSponsoredImpressionsAction } from "@/app/(customer)/_components/ad-tracking.actions";
 import type { NearbyCombo } from "@/lib/domain/combo";
 import type { Category } from "@/lib/domain/category";
 
@@ -109,6 +110,22 @@ export function ComboSections({
       cancelled = true;
     };
   }, [locationState, recommendedCategoryId, categories]);
+
+  // Impression tracking (0035) — fires once per sponsored combo per page
+  // load, not once per re-render: recordedRef tracks which ids have
+  // already been counted so a later, unrelated state update (e.g. a
+  // different section finishing its own fetch) doesn't double-count a
+  // combo whose impression was already recorded.
+  const recordedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const allCombos = [...Object.values(combosBySection).flat(), ...Object.values(combosByCategory).flat()];
+    const newSponsoredIds = allCombos
+      .filter((c) => c.isSponsored && !recordedRef.current.has(c.comboId))
+      .map((c) => c.comboId);
+    if (newSponsoredIds.length === 0) return;
+    newSponsoredIds.forEach((id) => recordedRef.current.add(id));
+    void recordSponsoredImpressionsAction(newSponsoredIds);
+  }, [combosBySection, combosByCategory]);
 
   if (locationState === "locating") {
     return (

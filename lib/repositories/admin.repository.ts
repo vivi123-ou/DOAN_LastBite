@@ -36,6 +36,7 @@ export async function getOverviewStats(admin: SupabaseClient<Database>): Promise
     { data: subscriptionRows, error: subscriptionsError },
     { commissionPct },
     { data: monthOrders, error: monthOrdersError },
+    { data: adBookingRows },
   ] = await Promise.all([
     admin.from("profiles").select("id", { count: "exact", head: true }),
     admin.from("stores").select("verification_status"),
@@ -58,6 +59,15 @@ export async function getOverviewStats(admin: SupabaseClient<Database>): Promise
       .select("total_amount")
       .eq("status", "completed")
       .gte("created_at", startOfMonth.toISOString()),
+    // Same resilience exception, for the new 0035 ad_bookings table.
+    admin
+      .from("ad_bookings")
+      .select("amount_paid")
+      .in("status", ["active", "expired"])
+      .then(
+        (r) => r,
+        () => ({ data: [] as { amount_paid: number | null }[], error: null })
+      ),
   ]);
   if (usersError) throw usersError;
   if (storesError) throw storesError;
@@ -81,6 +91,7 @@ export async function getOverviewStats(admin: SupabaseClient<Database>): Promise
     totalRevenue: completedOrders.reduce((sum, o) => sum + o.total_amount, 0),
     subscriptionRevenue: (subscriptionRows ?? []).reduce((sum, r) => sum + (r.amount_paid ?? 0), 0),
     commissionRevenueThisMonth: Math.round((monthGrossRevenue * commissionPct) / 100),
+    adRevenue: (adBookingRows ?? []).reduce((sum, r) => sum + (r.amount_paid ?? 0), 0),
     totalCo2SavedKg,
     totalFoodRescuedKg: totalCo2SavedKg / 2.5,
     openReportsCount: openReportsCount ?? 0,
