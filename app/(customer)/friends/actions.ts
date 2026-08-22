@@ -6,12 +6,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById as getProfileById } from "@/lib/repositories/profile.repository";
 import {
+  blockExisting,
+  blockNew,
+  getById as getFriendshipById,
   getFriendshipBetween,
   listFriendships,
   remove as removeFriendship,
+  resendRequest,
   respondToRequest,
   searchUsers,
   sendRequest,
+  unblock,
 } from "@/lib/repositories/friend.repository";
 import { create as createNotification } from "@/lib/repositories/notification.repository";
 import type { FriendSummary, PublicProfile } from "@/lib/domain/social";
@@ -54,12 +59,16 @@ export async function sendFriendRequestAction(addresseeId: string) {
 
   const existing = await getFriendshipBetween(supabase, userId, addresseeId);
   if (existing) {
-    throw new Error(
-      existing.status === "accepted" ? "Hai bạn đã là bạn bè." : "Lời mời kết bạn đã tồn tại."
-    );
+    if (existing.blocked_by) throw new Error("Không thể gửi lời mời kết bạn.");
+    if (existing.status === "accepted") throw new Error("Hai bạn đã là bạn bè.");
+    if (existing.status === "pending") throw new Error("Lời mời kết bạn đã tồn tại.");
+    // status === 'rejected', not blocked — reuse the existing row (resend)
+    // instead of inserting a duplicate, which the unique(requester_id,
+    // addressee_id) constraint would otherwise reject outright.
+    await resendRequest(supabase, existing.id, userId, addresseeId);
+  } else {
+    await sendRequest(supabase, userId, addresseeId);
   }
-
-  await sendRequest(supabase, userId, addresseeId);
 
   const requesterProfile = await getProfileById(supabase, userId);
   const admin = createAdminClient();
@@ -84,6 +93,45 @@ export async function removeFriendshipAction(friendshipId: string) {
   if (!userId) throw new Error("Bạn cần đăng nhập.");
 
   await removeFriendship(supabase, friendshipId);
+  revalidatePath("/friends");
+}
+
+// Blocks regardless of whether a friendship row already exists — folds
+// into that row (severing any accepted status) if one does, inserts a
+// fresh blocked-only row (no prior relationship) if not. Either way, the
+// blocker is always the one calling this from their own /friends page.
+export async function blockUserAction(otherUserId: string) {
+  const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) throw new Error("Bạn cần đăng nhập.");
+
+  const existing = await getFriendshipBetween(supabase, userId, otherUserId);
+  if (existing) {
+    await blockExisting(supabase, existing.id, userId);
+  } else {
+    await blockNew(supabase, userId, otherUserId);
+  }
+  revalidatePath("/friends");
+}
+
+// Only clears the block flag — does not restore an accepted friendship or
+// auto-send a new request. Unblocking someone you blocked and re-friending
+// them are two different, deliberate actions.
+export async function unblockUserAction(friendshipId: string) {
+  const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) throw new Error("Bạn cần đăng nhập.");
+
+  // friendships_update_either_party RLS (0033) permits either party to
+  // update this row, so this ownership check is the only thing stopping a
+  // blocked user from unblocking *themselves* by calling this action
+  // directly — only the party who actually did the blocking may undo it.
+  const friendship = await getFriendshipById(supabase, friendshipId);
+  if (!friendship || friendship.blocked_by !== userId) {
+    throw new Error("Bạn không thể bỏ chặn ở đây.");
+  }
+
+  await unblock(supabase, friendshipId);
   revalidatePath("/friends");
 }
 

@@ -13,6 +13,14 @@ export interface ComboReview {
   rating: number | null;
   comment: string | null;
   createdAt: string;
+  imageUrls: string[];
+  // Only ever meaningful for kind = 'report' — a store owner's one written
+  // reply to a complaint about their own store, before/instead of an admin
+  // ever weighing in.
+  storeResponse: string | null;
+  storeRespondedAt: string | null;
+  // Admin report-handling (0026) — null until an admin marks it looked-at.
+  resolvedAt: string | null;
 }
 
 export interface CreateReviewInput {
@@ -21,6 +29,7 @@ export interface CreateReviewInput {
   kind: ReviewKind;
   rating?: number;
   comment?: string;
+  imageUrls?: string[];
 }
 
 // Per-combo aggregate shown on the combo detail page and the store's

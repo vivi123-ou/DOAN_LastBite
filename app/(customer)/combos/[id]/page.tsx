@@ -240,6 +240,14 @@ export default async function ComboDetailPage({
                   </span>
                 </div>
                 {review.comment && <p className="mt-1 text-muted-foreground">{review.comment}</p>}
+                {review.imageUrls.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {review.imageUrls.map((url) => (
+                      // eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL
+                      <img key={url} src={url} alt="" className="size-14 rounded-md border object-cover" />
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>

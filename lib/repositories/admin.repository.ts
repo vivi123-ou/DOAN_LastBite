@@ -324,7 +324,9 @@ export async function listReportsForAdmin(
 ): Promise<PaginatedResult<AdminReportSummary>> {
   let query = admin
     .from("combo_reviews")
-    .select("id, comment, created_at, resolved_at, admin_note, combo_id, store_id, customer_id")
+    .select(
+      "id, comment, created_at, resolved_at, admin_note, combo_id, store_id, customer_id, image_urls, store_response"
+    )
     .eq("kind", "report")
     .order("created_at", { ascending: false });
   if (filter.resolved === "open") query = query.is("resolved_at", null);
@@ -365,6 +367,8 @@ export async function listReportsForAdmin(
     createdAt: r.created_at,
     resolvedAt: r.resolved_at,
     adminNote: r.admin_note,
+    imageUrls: r.image_urls,
+    storeResponse: r.store_response,
   }));
 
   if (filter.search) {

@@ -84,6 +84,12 @@ export default async function AdminReportsPage({
                     <Badge variant="outline">Đã xử lý</Badge>
                   </div>
                   {r.comment && <p className="text-sm text-muted-foreground">{r.comment}</p>}
+                  {r.storeResponse && (
+                    <p className="text-sm">
+                      <span className="font-medium text-primary">Phản hồi từ cửa hàng: </span>
+                      {r.storeResponse}
+                    </p>
+                  )}
                   {r.adminNote && (
                     <p className="text-sm text-primary">Ghi chú xử lý: {r.adminNote}</p>
                   )}

@@ -73,6 +73,20 @@ export function OpenReportsList({ reports }: { reports: AdminReportSummary[] }) 
               </div>
               <p className="text-sm text-muted-foreground">Khách hàng: {r.customerName ?? "—"}</p>
               {r.comment && <p className="rounded-md border bg-muted/40 p-2 text-sm">{r.comment}</p>}
+              {r.imageUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {r.imageUrls.map((url) => (
+                    // eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL
+                    <img key={url} src={url} alt="" className="size-16 rounded-md border object-cover" />
+                  ))}
+                </div>
+              )}
+              {r.storeResponse && (
+                <p className="rounded-md border border-primary/30 bg-primary/5 p-2 text-sm">
+                  <span className="font-medium text-primary">Phản hồi từ cửa hàng: </span>
+                  {r.storeResponse}
+                </p>
+              )}
               <ResolveReportButton reportId={r.id} />
             </div>
           </CardContent>

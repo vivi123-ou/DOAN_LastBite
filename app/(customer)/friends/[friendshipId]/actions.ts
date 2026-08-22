@@ -33,8 +33,12 @@ export async function markThreadReadAction(friendshipId: string) {
 }
 
 export async function sendMessageAction(friendshipId: string, body: string) {
-  const { supabase, userId, otherId } = await requireParty(friendshipId);
+  const { supabase, userId, otherId, friendship } = await requireParty(friendshipId);
   if (!body.trim()) return;
+  // Blocked in either direction — same posture as every other cross-actor
+  // guard in this app (self-purchase, admin-can't-shop): checked server-
+  // side, not just hidden from the UI, since the client could be stale.
+  if (friendship.blocked_by) throw new Error("Không thể nhắn tin, cuộc trò chuyện đã bị chặn.");
 
   await sendMessage(supabase, { friendshipId, senderId: userId, body: body.trim() });
 
@@ -74,7 +78,8 @@ export async function createGroupOrderInviteAction(
   storeId: string,
   comboId: string
 ) {
-  const { supabase, userId, otherId } = await requireParty(friendshipId);
+  const { supabase, userId, otherId, friendship } = await requireParty(friendshipId);
+  if (friendship.blocked_by) throw new Error("Không thể gửi lời mời, cuộc trò chuyện đã bị chặn.");
 
   const admin = createAdminClient();
 

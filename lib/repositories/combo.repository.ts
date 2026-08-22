@@ -10,6 +10,7 @@ import type {
 import type { BuiltCombo } from "@/lib/factories/combo.builder";
 import { resolvePricingStrategy } from "@/lib/pricing/strategies/pricing-strategy.factory";
 import { computeStockBasedDecayPrice } from "@/lib/pricing/strategies/stock-based-decay.strategy";
+import { appEventBus } from "@/lib/events/app-events";
 
 type ComboRow = Database["public"]["Tables"]["combos"]["Row"];
 
@@ -383,6 +384,17 @@ export async function create(
     .single();
   if (activateError) throw activateError;
 
+  // Fire-and-forget — see lib/events/app-events.ts. A brand-new combo is
+  // always created straight into 'active' (built.combo above never sets a
+  // draft-forever path), so this fires exactly once per real listing, not
+  // on every subsequent edit.
+  void appEventBus.publish("combo.activated", {
+    comboId: activated.id,
+    comboName: activated.name,
+    storeId: activated.store_id,
+    storeName: store.name,
+  });
+
   return hydrate(client, activated, store);
 }
 
@@ -453,7 +465,7 @@ export async function relist(
 ): Promise<void> {
   const { data: combo, error: fetchError } = await client
     .from("combos")
-    .select("original_price")
+    .select("original_price, name, store_id")
     .eq("id", id)
     .single();
   if (fetchError) throw fetchError;
@@ -469,4 +481,18 @@ export async function relist(
     })
     .eq("id", id);
   if (error) throw error;
+
+  // Fire-and-forget, same publisher create() above uses — a relist is
+  // functionally a fresh listing event too (fresh stock, fresh best_before),
+  // so it's exactly the "combo went active near you" moment this event
+  // exists for. One extra query for the store's own name (relist is a rare,
+  // store-owner-driven action, not a hot path — worth it for a real name in
+  // the notification body over a generic placeholder).
+  const { data: storeRow } = await client.from("stores").select("name").eq("id", combo.store_id).maybeSingle();
+  void appEventBus.publish("combo.activated", {
+    comboId: id,
+    comboName: combo.name,
+    storeId: combo.store_id,
+    storeName: storeRow?.name ?? "",
+  });
 }

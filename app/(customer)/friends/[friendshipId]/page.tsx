@@ -40,6 +40,7 @@ export default async function FriendChatPage({
         friendshipId={friendshipId}
         currentUserId={userId}
         isAccepted={friendship.status === "accepted"}
+        isBlocked={Boolean(friendship.blocked_by)}
         otherName={otherProfile?.fullName ?? "Người dùng LastBite"}
         otherAvatarUrl={otherProfile?.avatarUrl ?? null}
         initialMessages={messages}

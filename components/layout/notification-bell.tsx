@@ -27,6 +27,9 @@ function targetHref(n: Notification): string | null {
     // so there's nowhere more specific to send someone than the chat itself.
     return `/friends/${payload.conversationId}`;
   }
+  if (n.type === "nearby_combo_activated" && typeof payload.comboId === "string") {
+    return `/combos/${payload.comboId}`;
+  }
   return null;
 }
 

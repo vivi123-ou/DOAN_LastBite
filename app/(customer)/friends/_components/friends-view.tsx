@@ -4,7 +4,18 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Search, UserPlus, Check, X, MessageCircle, UserMinus, UserCheck, Clock } from "lucide-react";
+import {
+  Search,
+  UserPlus,
+  Check,
+  X,
+  MessageCircle,
+  UserMinus,
+  UserCheck,
+  Clock,
+  Ban,
+  ShieldOff,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,6 +24,8 @@ import {
   sendFriendRequestAction,
   respondFriendRequestAction,
   removeFriendshipAction,
+  blockUserAction,
+  unblockUserAction,
 } from "@/app/(customer)/friends/actions";
 import type { FriendSummary, PublicProfile } from "@/lib/domain/social";
 
@@ -23,21 +36,32 @@ function initialOf(name: string | null) {
 export function FriendsView({
   initialFriendships,
   unreadCounts,
+  currentUserId,
 }: {
   initialFriendships: FriendSummary[];
   // Plain object, not a Map — Server Components can only pass RSC-serializable
   // props across the boundary; friends/page.tsx converts the Map from
   // getUnreadCounts() with Object.fromEntries() before handing it down.
   unreadCounts: Record<string, number>;
+  // Needed to tell "you blocked them" (show "Bỏ chặn") apart from "they
+  // blocked you" (show nothing actionable) — blockedBy alone doesn't say
+  // which direction from the client's perspective.
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicProfile[] | null>(null);
   const [searching, setSearching] = useState(false);
 
-  const incoming = initialFriendships.filter((f) => f.isIncomingRequest);
-  const accepted = initialFriendships.filter((f) => f.status === "accepted");
-  const outgoing = initialFriendships.filter((f) => f.status === "pending" && !f.isIncomingRequest);
+  // A blocked friendship's status is always 'rejected' (blockExisting sets
+  // it) — so without this explicit filter, a blocked-by-me row would
+  // silently vanish from every section below instead of surfacing
+  // somewhere the blocker can undo it.
+  const blockedByMe = initialFriendships.filter((f) => f.blockedBy === currentUserId);
+  const visible = initialFriendships.filter((f) => !f.blockedBy);
+  const incoming = visible.filter((f) => f.isIncomingRequest);
+  const accepted = visible.filter((f) => f.status === "accepted");
+  const outgoing = visible.filter((f) => f.status === "pending" && !f.isIncomingRequest);
 
   // search_profiles() (the RPC behind searchUsersAction) has no idea who
   // the caller is already friends/pending with — it just matches on name —
@@ -96,6 +120,28 @@ export function FriendsView({
     }
   }
 
+  async function handleBlock(userId: string, name: string | null) {
+    if (!window.confirm(`Chặn ${name ?? "người này"}? Họ sẽ không thể nhắn tin hoặc mời bạn mua chung nữa.`))
+      return;
+    try {
+      await blockUserAction(userId);
+      toast.success("Đã chặn.");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Có lỗi xảy ra, thử lại sau.");
+    }
+  }
+
+  async function handleUnblock(friendshipId: string) {
+    try {
+      await unblockUserAction(friendshipId);
+      toast.success("Đã bỏ chặn.");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Có lỗi xảy ra, thử lại sau.");
+    }
+  }
+
   return (
     <div className="space-y-8">
       <form onSubmit={handleSearch} className="flex gap-2">
@@ -131,7 +177,14 @@ export function FriendsView({
                       </Avatar>
                       <span className="text-sm font-medium">{u.fullName ?? "Người dùng LastBite"}</span>
                     </div>
-                    {existing?.status === "accepted" ? (
+                    {existing?.blockedBy === currentUserId ? (
+                      <Button size="sm" variant="outline" onClick={() => handleUnblock(existing.friendshipId)}>
+                        <ShieldOff className="mr-1.5 size-4" />
+                        Bỏ chặn
+                      </Button>
+                    ) : existing?.blockedBy ? (
+                      <span className="text-xs text-muted-foreground">Không thể kết bạn</span>
+                    ) : existing?.status === "accepted" ? (
                       <span className="flex items-center gap-1.5 text-xs font-medium text-primary">
                         <UserCheck className="size-4" />
                         Đã là bạn bè
@@ -221,6 +274,16 @@ export function FriendsView({
                   size="icon-sm"
                   variant="ghost"
                   className="text-muted-foreground hover:text-destructive"
+                  aria-label="Chặn"
+                  onClick={() => handleBlock(f.userId, f.fullName)}
+                >
+                  <Ban className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive"
                   aria-label="Huỷ kết bạn"
                   onClick={() =>
                     handleRemove(
@@ -237,6 +300,29 @@ export function FriendsView({
           </ul>
         )}
       </section>
+
+      {blockedByMe.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-muted-foreground">Đã chặn</h2>
+          <ul className="space-y-2">
+            {blockedByMe.map((f) => (
+              <li key={f.friendshipId} className="flex items-center justify-between gap-3 rounded-md border p-3 opacity-70">
+                <div className="flex items-center gap-3">
+                  <Avatar>
+                    {f.avatarUrl && <AvatarImage src={f.avatarUrl} alt="" />}
+                    <AvatarFallback>{initialOf(f.fullName)}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium">{f.fullName ?? "Người dùng LastBite"}</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => handleUnblock(f.friendshipId)}>
+                  <ShieldOff className="mr-1.5 size-4" />
+                  Bỏ chặn
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {outgoing.length > 0 && (
         <section className="space-y-2">

@@ -169,9 +169,9 @@ export default async function StoreDashboardPage() {
           <CardContent className="flex items-center gap-3 p-4">
             <Sparkles className="size-5 shrink-0 text-primary" />
             <p className="text-sm text-muted-foreground">
-              Nâng cấp lên <strong className="text-foreground">Premium</strong> để xem báo cáo tác
-              động Net Zero của cửa hàng và nhận gợi ý số lượng nhập hàng thông minh khi bán lại
-              combo.{" "}
+              Nâng cấp lên <strong className="text-foreground">Premium</strong> để xem báo cáo
+              tháng đầy đủ, tác động Net Zero của cửa hàng, và nhận gợi ý số lượng nhập hàng
+              thông minh khi bán lại combo.{" "}
               <Link href="/dashboard/subscription" className="text-primary underline underline-offset-2">
                 Xem các gói
               </Link>

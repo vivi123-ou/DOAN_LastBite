@@ -13,6 +13,10 @@ export interface FriendSummary extends PublicProfile {
   // request — i.e. it's waiting on them to accept/reject, not the other
   // party.
   isIncomingRequest: boolean;
+  // null = not blocked. Otherwise the id of whichever party did the
+  // blocking — lets the UI distinguish "you blocked them" (show "Bỏ chặn")
+  // from "they blocked you" (show neither button, just the fact of it).
+  blockedBy: string | null;
 }
 
 export interface Message {

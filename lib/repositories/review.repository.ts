@@ -23,6 +23,10 @@ function toDomain(row: ReviewRow, comboName: string, customerName: string | null
     rating: row.rating,
     comment: row.comment,
     createdAt: row.created_at,
+    imageUrls: row.image_urls,
+    storeResponse: row.store_response,
+    storeRespondedAt: row.store_responded_at,
+    resolvedAt: row.resolved_at,
   };
 }
 
@@ -70,6 +74,7 @@ export async function create(
       kind: input.kind,
       rating: input.kind === "review" ? (input.rating ?? null) : null,
       comment: input.comment ?? null,
+      image_urls: input.imageUrls ?? [],
     })
     .select("*")
     .single();
@@ -147,6 +152,24 @@ export async function listPublicForCombo(
   return rows.map((row) => toDomain(row, "", nameByCustomer.get(row.customer_id) ?? null));
 }
 
+// combo_reviews_update_store_owner RLS (0034) already scopes this to
+// reports about the caller's own store — regular client, same-actor write
+// (a store owner responding to a complaint about their own store). Only
+// ever meaningful for kind = 'report' — nothing stops calling it on a
+// review row too, but the UI (review-card / report list) never offers the
+// button there, so this isn't defended against server-side beyond that.
+export async function respondToReport(
+  client: SupabaseClient<Database>,
+  reviewId: string,
+  response: string
+): Promise<void> {
+  const { error } = await client
+    .from("combo_reviews")
+    .update({ store_response: response, store_responded_at: new Date().toISOString() })
+    .eq("id", reviewId);
+  if (error) throw error;
+}
+
 export async function getComboRatingSummary(
   client: SupabaseClient<Database>,
   comboId: string
@@ -164,17 +187,59 @@ export async function getComboRatingSummary(
 }
 
 // combo_reviews_select_store_owner RLS already scopes this to the caller's
+// own store — regular client. Backs the new /dashboard/feedback page (the
+// moderation/appeal gap: a store owner needs to see and reply to individual
+// reports, not just the aggregated count getStoreStats() already surfaces
+// on the dashboard overview).
+export async function listReportsForStore(
+  client: SupabaseClient<Database>,
+  storeId: string
+): Promise<ComboReview[]> {
+  const { data: rows, error } = await client
+    .from("combo_reviews")
+    .select("*")
+    .eq("store_id", storeId)
+    .eq("kind", "report")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  if (rows.length === 0) return [];
+
+  const comboIds = [...new Set(rows.map((r) => r.combo_id))];
+  const customerIds = [...new Set(rows.map((r) => r.customer_id))];
+  // Regular client is safe here, unlike listFriendships()'s equivalent
+  // lookup — every combo_reviews row is tied to a real order_id for this
+  // exact store, so the reviewing customer necessarily has an order with
+  // it, which 0005's profiles_select_by_order_store_owner already covers.
+  const [{ data: combos }, { data: profiles }] = await Promise.all([
+    client.from("combos").select("id, name").in("id", comboIds),
+    client.from("profiles").select("id, full_name").in("id", customerIds),
+  ]);
+  const nameByCombo = new Map((combos ?? []).map((c) => [c.id, c.name]));
+  const nameByCustomer = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+
+  return rows.map((row) =>
+    toDomain(row, nameByCombo.get(row.combo_id) ?? "", nameByCustomer.get(row.customer_id) ?? null)
+  );
+}
+
+// combo_reviews_select_store_owner RLS already scopes this to the caller's
 // own store (reviews *and* reports both — a store owner needs to see
 // reports, that's the point) — regular client. Backs the store dashboard's
 // "Đánh giá sản phẩm" analytics block.
 export async function getStoreStats(
   client: SupabaseClient<Database>,
-  storeId: string
+  storeId: string,
+  // Optional period bound, same additive-param shape as net-zero.repository.ts's
+  // getStoreImpact() — the monthly report (report.repository.ts) needs "this
+  // store's ratings/reports filed in calendar month X," the dashboard
+  // overview's existing card keeps using the all-time total.
+  periodStart?: string,
+  periodEndExclusive?: string
 ): Promise<StoreReviewStats> {
-  const { data: rows, error } = await client
-    .from("combo_reviews")
-    .select("combo_id, kind, rating")
-    .eq("store_id", storeId);
+  let query = client.from("combo_reviews").select("combo_id, kind, rating").eq("store_id", storeId);
+  if (periodStart) query = query.gte("created_at", periodStart);
+  if (periodEndExclusive) query = query.lt("created_at", periodEndExclusive);
+  const { data: rows, error } = await query;
   if (error) throw error;
 
   const reportCount = rows.filter((r) => r.kind === "report").length;

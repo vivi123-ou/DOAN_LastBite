@@ -7,6 +7,7 @@ export const createReviewSchema = z
     kind: z.enum(["review", "report"]),
     rating: z.coerce.number().int().min(1).max(5).optional(),
     comment: z.string().trim().max(1000).optional(),
+    imageUrls: z.array(z.string().url()).max(6, "Tối đa 6 ảnh").optional(),
   })
   .refine((data) => data.kind !== "review" || data.rating !== undefined, {
     message: "Vui lòng chọn số sao đánh giá",
