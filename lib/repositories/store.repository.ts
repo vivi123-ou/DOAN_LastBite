@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
-import type { RegisterStoreInput, Store, UpdateStoreInput } from "@/lib/domain/store";
+import type {
+  RegisterStoreInput,
+  Store,
+  UpdateStoreInput,
+  StoreBankAccount,
+  UpdateBankAccountInput,
+} from "@/lib/domain/store";
 
 type StoreRow = Database["public"]["Tables"]["stores"]["Row"];
 
@@ -168,4 +174,79 @@ export async function updateStore(
     .single();
   if (error) throw error;
   return toDomain(data);
+}
+
+// Deliberately its own table (store_bank_accounts, 0030), not columns on
+// `stores` — see that migration's own comment. `store_bank_accounts_select_own`
+// RLS already scopes this to the caller's own store when called with the
+// regular client (the store's own /dashboard/store form); the admin
+// payouts page instead calls this with the service-role client, which
+// bypasses RLS the same way it does for every other cross-actor read in
+// this codebase.
+export async function getBankAccount(
+  client: SupabaseClient<Database>,
+  storeId: string
+): Promise<StoreBankAccount | null> {
+  const { data, error } = await client
+    .from("store_bank_accounts")
+    .select("store_id, bank_name, account_number, account_holder")
+    .eq("store_id", storeId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    storeId: data.store_id,
+    bankName: data.bank_name,
+    accountNumber: data.account_number,
+    accountHolder: data.account_holder,
+  };
+}
+
+// Batched variant for the admin payouts list (service-role client — an
+// admin needs every matching store's bank info in one screen, not just
+// their own). Returns a Map for easy per-row lookup by the caller.
+export async function listBankAccountsByStoreIds(
+  admin: SupabaseClient<Database>,
+  storeIds: string[]
+): Promise<Map<string, StoreBankAccount>> {
+  if (storeIds.length === 0) return new Map();
+  const { data, error } = await admin
+    .from("store_bank_accounts")
+    .select("store_id, bank_name, account_number, account_holder")
+    .in("store_id", storeIds);
+  if (error) throw error;
+  return new Map(
+    data.map((row) => [
+      row.store_id,
+      {
+        storeId: row.store_id,
+        bankName: row.bank_name,
+        accountNumber: row.account_number,
+        accountHolder: row.account_holder,
+      },
+    ])
+  );
+}
+
+// A store might not have a row yet (never filled this in) — upsert so the
+// same form submission works whether this is the first save or an edit.
+// Regular client only — store_bank_accounts has no admin-facing write
+// policy at all (see 0030's comment: admin only ever reads this, never
+// writes it).
+export async function upsertBankAccount(
+  client: SupabaseClient<Database>,
+  storeId: string,
+  input: UpdateBankAccountInput
+): Promise<void> {
+  const { error } = await client.from("store_bank_accounts").upsert(
+    {
+      store_id: storeId,
+      bank_name: input.bankName || null,
+      account_number: input.accountNumber || null,
+      account_holder: input.accountHolder || null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "store_id" }
+  );
+  if (error) throw error;
 }

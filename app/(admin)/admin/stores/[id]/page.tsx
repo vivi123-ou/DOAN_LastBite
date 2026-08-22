@@ -12,6 +12,7 @@ import {
   getEffectiveSubscription,
 } from "@/lib/repositories/subscription.repository";
 import { listPayoutsForAdmin } from "@/lib/repositories/commission.repository";
+import { getBankAccount } from "@/lib/repositories/store.repository";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StoreActions } from "@/app/(admin)/admin/stores/_components/store-actions";
@@ -54,13 +55,14 @@ export default async function AdminStoreDetailPage({ params }: { params: Promise
   const store = await getStoreDetailForAdmin(admin, id);
   if (!store) notFound();
 
-  const [combos, reports, orders, payouts, subscription, effective] = await Promise.all([
+  const [combos, reports, orders, payouts, subscription, effective, bankAccount] = await Promise.all([
     listCombosForAdmin(admin, { storeId: id, page: 1 }),
     listReportsForAdmin(admin, { storeId: id, page: 1 }),
     listOrdersForStoreAdmin(admin, id),
     listPayoutsForAdmin(admin, { storeId: id, page: 1 }),
     getCurrentSubscriptionForStore(admin, id),
     getEffectiveSubscription(admin, id),
+    getBankAccount(admin, id),
   ]);
 
   return (
@@ -99,6 +101,17 @@ export default async function AdminStoreDetailPage({ params }: { params: Promise
           {effective.maxActiveCombos !== null && (
             <p className="text-muted-foreground">Giới hạn {effective.maxActiveCombos} combo đang bán.</p>
           )}
+          <p className="mt-2">
+            Nhận thanh toán:{" "}
+            {bankAccount?.accountNumber || bankAccount?.bankName ? (
+              <>
+                <strong>{bankAccount.bankName || "—"}</strong> ·{" "}
+                <strong>{bankAccount.accountNumber || "—"}</strong> · {bankAccount.accountHolder || "—"}
+              </>
+            ) : (
+              <span className="text-destructive">Chưa nhập thông tin ngân hàng</span>
+            )}
+          </p>
         </CardContent>
       </Card>
 
