@@ -72,7 +72,7 @@ export default async function ComboDetailPage({
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
       {groupOrderId && (
         <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
-          Bạn đang mua theo lời mời mua chung — thêm vào giỏ hàng để tiếp tục.
+          Bạn đang mua theo lời mời mua chung. Thêm vào giỏ hàng để tiếp tục.
         </div>
       )}
 
@@ -173,7 +173,7 @@ export default async function ComboDetailPage({
         <div className="flex items-center justify-between gap-4 rounded-md border border-dashed p-4 text-sm">
           <span className="flex items-center gap-2 text-muted-foreground">
             <StoreIcon className="size-4" />
-            Đây là combo của cửa hàng bạn — không thể tự mua.
+            Đây là combo của cửa hàng bạn. Không thể tự mua.
           </span>
           <Button
             variant="outline"

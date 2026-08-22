@@ -71,7 +71,7 @@ export default function SignupPage() {
         <CardHeader>
           <CardTitle>Tạo tài khoản</CardTitle>
           <CardDescription>
-            Dùng chung cho khách hàng và cửa hàng — bạn có thể đăng ký cửa hàng sau khi tạo tài
+            Dùng chung cho khách hàng và cửa hàng. Bạn có thể đăng ký cửa hàng sau khi tạo tài
             khoản.
           </CardDescription>
         </CardHeader>

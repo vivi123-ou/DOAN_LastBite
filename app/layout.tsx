@@ -31,7 +31,7 @@ const fredoka = Fredoka({
 export const metadata: Metadata = {
   title: "LastBite — Combo cuối ngày, giảm giá xanh",
   description:
-    "LastBite kết nối bạn với các combo đồ ăn, thức uống cuối ngày còn ngon từ cửa hàng gần bạn — tiết kiệm chi phí, giảm lãng phí thực phẩm, hướng tới Net Zero.",
+    "LastBite kết nối bạn với các combo đồ ăn, thức uống cuối ngày còn ngon từ cửa hàng gần bạn, tiết kiệm chi phí, giảm lãng phí thực phẩm, hướng tới Net Zero.",
 };
 
 export default async function RootLayout({

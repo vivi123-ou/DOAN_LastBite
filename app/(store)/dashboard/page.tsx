@@ -230,7 +230,7 @@ export default async function StoreDashboardPage() {
                   <Flag className="size-5 text-destructive" />
                   <p className="text-sm">
                     <strong className="text-destructive">{reviewStats.reportCount}</strong> báo cáo
-                    vấn đề từ khách hàng — xem chi tiết ở lịch sử đơn hàng liên quan.
+                    vấn đề từ khách hàng. Xem chi tiết ở lịch sử đơn hàng liên quan.
                   </p>
                 </CardContent>
               </Card>

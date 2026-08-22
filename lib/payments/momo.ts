@@ -27,7 +27,7 @@ const CREATE_ENDPOINT =
 function requireConfig(): { partnerCode: string; accessKey: string; secretKey: string } {
   if (!PARTNER_CODE || !ACCESS_KEY || !SECRET_KEY) {
     throw new Error(
-      "Thiếu cấu hình MoMo — hãy đặt MOMO_PARTNER_CODE/MOMO_ACCESS_KEY/MOMO_SECRET_KEY trong .env.local (xem .env.local.example)."
+      "Thiếu cấu hình MoMo. Hãy đặt MOMO_PARTNER_CODE/MOMO_ACCESS_KEY/MOMO_SECRET_KEY trong .env.local (xem .env.local.example)."
     );
   }
   return { partnerCode: PARTNER_CODE, accessKey: ACCESS_KEY, secretKey: SECRET_KEY };

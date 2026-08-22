@@ -113,7 +113,7 @@ export function BulkRelistDialog({ onClose, rows }: { onClose: () => void; rows:
         <DialogHeader>
           <DialogTitle>Bán lại {rows.length} combo</DialogTitle>
           <DialogDescription>
-            Kiểm tra lại số lượng thực tế hôm nay cho từng combo trước khi xác nhận — hạn bán mới
+            Kiểm tra lại số lượng thực tế hôm nay cho từng combo trước khi xác nhận. Hạn bán mới
             được tự đề xuất theo loại combo.
           </DialogDescription>
         </DialogHeader>

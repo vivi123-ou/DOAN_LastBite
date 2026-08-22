@@ -26,7 +26,7 @@ export function AvatarUploader({ userId, value, fallbackInitial, onChange }: Ava
       return;
     }
     if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      setError("Ảnh vượt quá 5MB — vui lòng chọn ảnh nhỏ hơn.");
+      setError("Ảnh vượt quá 5MB. Vui lòng chọn ảnh nhỏ hơn.");
       return;
     }
 
@@ -66,7 +66,7 @@ export function AvatarUploader({ userId, value, fallbackInitial, onChange }: Ava
         />
       </label>
       <p className="text-xs text-muted-foreground">
-        {uploading ? "Đang tải lên..." : "Bấm vào ảnh để đổi — JPG/PNG/WEBP, tối đa 5MB."}
+        {uploading ? "Đang tải lên..." : "Bấm vào ảnh để đổi. JPG/PNG/WEBP, tối đa 5MB."}
       </p>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

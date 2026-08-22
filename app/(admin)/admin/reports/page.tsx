@@ -79,7 +79,7 @@ export default async function AdminReportsPage({
                 <CardContent className="space-y-2 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-medium">
-                      {r.comboName} <span className="text-muted-foreground">— {r.storeName}</span>
+                      {r.comboName} <span className="text-muted-foreground">· {r.storeName}</span>
                     </p>
                     <Badge variant="outline">Đã xử lý</Badge>
                   </div>

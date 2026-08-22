@@ -86,7 +86,7 @@ export function StoreFields({
             onCoordsChange({ lat: data.result.lat, lng: data.result.lng });
             setGeocodeNotice(null);
           } else {
-            setGeocodeNotice("Không tìm được toạ độ cho địa chỉ này — kéo ghim trên bản đồ để chỉnh.");
+            setGeocodeNotice("Không tìm được toạ độ cho địa chỉ này. Kéo ghim trên bản đồ để chỉnh.");
           }
         })
         .catch(() => setGeocodeNotice(null))
@@ -161,7 +161,7 @@ export function StoreFields({
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Kéo ghim hoặc bấm vào bản đồ để chỉnh vị trí chính xác — vị trí này dùng để hiển thị cửa
+          Kéo ghim hoặc bấm vào bản đồ để chỉnh vị trí chính xác. Vị trí này dùng để hiển thị cửa
           hàng của bạn cho khách gần đó.
         </p>
       </div>

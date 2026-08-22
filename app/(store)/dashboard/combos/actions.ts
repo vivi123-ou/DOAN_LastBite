@@ -64,7 +64,7 @@ export async function createComboAction(input: unknown) {
   const effective = await getEffectiveSubscription(admin, store.id);
   if (effective.locked) {
     throw new Error(
-      'Gói dịch vụ của cửa hàng đã hết hạn — vui lòng gia hạn ở mục "Gói dịch vụ" để tiếp tục đăng combo mới.'
+      'Gói dịch vụ của cửa hàng đã hết hạn. Vui lòng gia hạn ở mục "Gói dịch vụ" để tiếp tục đăng combo mới.'
     );
   }
   if (effective.maxActiveCombos !== null) {
@@ -76,7 +76,7 @@ export async function createComboAction(input: unknown) {
     if (error) throw error;
     if ((count ?? 0) >= effective.maxActiveCombos) {
       throw new Error(
-        `Cửa hàng đã đạt giới hạn ${effective.maxActiveCombos} combo đang bán của gói hiện tại — nâng cấp gói ở mục "Gói dịch vụ" hoặc dừng bán bớt combo cũ để đăng combo mới.`
+        `Cửa hàng đã đạt giới hạn ${effective.maxActiveCombos} combo đang bán của gói hiện tại. Nâng cấp gói ở mục "Gói dịch vụ" hoặc dừng bán bớt combo cũ để đăng combo mới.`
       );
     }
   }

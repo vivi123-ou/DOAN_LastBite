@@ -260,7 +260,7 @@ export function ChatView({
                 onValueChange={(v) => setComboId(v ?? "")}
                 items={storeCombos.map((c) => ({
                   value: c.comboId,
-                  label: `${c.name} — ${c.currentPrice.toLocaleString("vi-VN")}đ`,
+                  label: `${c.name} · ${c.currentPrice.toLocaleString("vi-VN")}đ`,
                 }))}
                 disabled={!storeId}
               >
@@ -272,7 +272,7 @@ export function ChatView({
                 <SelectContent>
                   {storeCombos.map((c) => (
                     <SelectItem key={c.comboId} value={c.comboId}>
-                      {c.name} — {c.currentPrice.toLocaleString("vi-VN")}đ
+                      {c.name} · {c.currentPrice.toLocaleString("vi-VN")}đ
                     </SelectItem>
                   ))}
                 </SelectContent>

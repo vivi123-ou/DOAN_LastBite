@@ -191,9 +191,9 @@ export function CartView({
               <p className="text-primary/80">
                 Cả nhóm đang có {groupOrderInvite.totalQuantity} phần
                 {groupOrderInvite.currentTier
-                  ? ` — đang được giảm ${groupOrderInvite.currentTier.discountPct}%, tự động áp vào đơn này.`
+                  ? `. Đang được giảm ${groupOrderInvite.currentTier.discountPct}%, tự động áp vào đơn này.`
                   : groupOrderInvite.nextTier
-                    ? ` — cần thêm ${groupOrderInvite.nextTier.minQuantity - groupOrderInvite.totalQuantity} phần nữa để được giảm ${groupOrderInvite.nextTier.discountPct}%.`
+                    ? `. Cần thêm ${groupOrderInvite.nextTier.minQuantity - groupOrderInvite.totalQuantity} phần nữa để được giảm ${groupOrderInvite.nextTier.discountPct}%.`
                     : "."}
               </p>
             ) : (
@@ -230,7 +230,7 @@ export function CartView({
                 {staleReason && (
                   <p className="mt-1 flex items-center gap-1 text-xs font-medium text-destructive">
                     <AlertTriangle className="size-3.5" />
-                    {staleReason} — vui lòng xoá khỏi giỏ hàng
+                    {staleReason}. Vui lòng xoá khỏi giỏ hàng
                   </p>
                 )}
               </div>
@@ -306,10 +306,10 @@ export function CartView({
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Tự động áp dụng số điểm tối ưu nhất — bạn có{" "}
+                      Tự động áp dụng số điểm tối ưu nhất. Bạn có{" "}
                       <strong>{netZeroPointsBalance.toLocaleString("vi-VN")}</strong> điểm khả dụng (
-                      {(netZeroPointsBalance * VND_PER_POINT).toLocaleString("vi-VN")}đ) — 1 điểm Net
-                      Zero = {VND_PER_POINT.toLocaleString("vi-VN")}đ.
+                      {(netZeroPointsBalance * VND_PER_POINT).toLocaleString("vi-VN")}đ), quy đổi 1
+                      điểm Net Zero = {VND_PER_POINT.toLocaleString("vi-VN")}đ.
                     </p>
                   </>
                 )}
@@ -374,7 +374,7 @@ export function CartView({
                   </div>
                   {!canPickup && !canDeliver && (
                     <p className="text-sm text-destructive">
-                      Các combo trong giỏ không có hình thức nhận hàng chung — vui lòng bớt món.
+                      Các combo trong giỏ không có hình thức nhận hàng chung. Vui lòng bớt món.
                     </p>
                   )}
                 </div>
@@ -411,7 +411,7 @@ export function CartView({
                 {hasStaleItems && (
                   <p className="flex items-center gap-1.5 text-sm text-destructive">
                     <AlertTriangle className="size-4 shrink-0" />
-                    Giỏ hàng có combo không còn khả dụng — xoá bớt để tiếp tục đặt hàng.
+                    Giỏ hàng có combo không còn khả dụng. Xoá bớt để tiếp tục đặt hàng.
                   </p>
                 )}
 

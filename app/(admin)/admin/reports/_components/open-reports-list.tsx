@@ -65,7 +65,7 @@ export function OpenReportsList({ reports }: { reports: AdminReportSummary[] }) 
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-medium">
-                  {r.comboName} <span className="text-muted-foreground">— {r.storeName}</span>
+                  {r.comboName} <span className="text-muted-foreground">· {r.storeName}</span>
                 </p>
                 <span className="text-xs text-muted-foreground">
                   {new Date(r.createdAt).toLocaleString("vi-VN")}

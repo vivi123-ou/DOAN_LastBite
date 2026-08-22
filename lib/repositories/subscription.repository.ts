@@ -351,7 +351,7 @@ export async function checkAndNotifyExpiringSoon(
       userId: ownerId,
       type: "subscription_expiring_soon",
       title: "Gói dịch vụ sắp hết hạn",
-      body: `Gói dịch vụ của cửa hàng bạn sẽ hết hạn vào ${expiresAt.toLocaleDateString("vi-VN")} — gia hạn ngay để không bị khoá tính năng đăng combo mới.`,
+      body: `Gói dịch vụ của cửa hàng bạn sẽ hết hạn vào ${expiresAt.toLocaleDateString("vi-VN")}. Gia hạn ngay để không bị khoá tính năng đăng combo mới.`,
       payload: { storeId },
     }).catch(() => {});
   }

@@ -78,7 +78,7 @@ export default async function StoreSubscriptionPage() {
         <CardContent className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-lg font-semibold text-primary">{effective.planName}</span>
-            {effective.locked && <Badge variant="destructive">Đã hết hạn — bị khoá</Badge>}
+            {effective.locked && <Badge variant="destructive">Đã hết hạn, bị khoá</Badge>}
           </div>
           <p className="text-sm text-muted-foreground">
             {effective.maxActiveCombos === null
@@ -90,14 +90,14 @@ export default async function StoreSubscriptionPage() {
               {effective.locked ? "Đã hết hạn vào" : "Hết hạn vào"}{" "}
               <strong>{new Date(effective.expiresAt).toLocaleDateString("vi-VN")}</strong>
               {effective.daysUntilExpiry !== null && effective.daysUntilExpiry >= 0 && (
-                <> — còn {effective.daysUntilExpiry} ngày</>
+                <> · còn {effective.daysUntilExpiry} ngày</>
               )}
             </p>
           )}
           {effective.locked && (
             <p className="flex items-center gap-1.5 text-sm text-destructive">
               <AlertTriangle className="size-4 shrink-0" />
-              Gói đã hết hạn — không thể đăng combo mới cho tới khi gia hạn.
+              Gói đã hết hạn. Không thể đăng combo mới cho tới khi gia hạn.
             </p>
           )}
           {current?.status === "pending_payment" && (

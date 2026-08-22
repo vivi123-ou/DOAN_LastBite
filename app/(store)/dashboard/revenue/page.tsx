@@ -49,7 +49,7 @@ export default async function StoreRevenuePage() {
         <h1 className="text-2xl font-bold">Doanh thu & hoa hồng</h1>
         <p className="text-sm text-muted-foreground">
           LastBite thu hoa hồng {config.commissionPct}% trên mỗi đơn hàng đã hoàn tất. Số dưới đây là
-          ước tính trực tiếp từ đơn hàng — phiếu đối soát chính thức do LastBite tạo khi đến kỳ thanh
+          ước tính trực tiếp từ đơn hàng. Phiếu đối soát chính thức do LastBite tạo khi đến kỳ thanh
           toán, xem lịch sử bên dưới.
         </p>
       </div>

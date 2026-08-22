@@ -46,7 +46,7 @@ export default async function AdminCommissionPage({
         <h1 className="text-2xl font-bold">Hoa hồng & đối soát tài chính</h1>
         <p className="text-sm text-muted-foreground">
           Tỷ lệ hoa hồng áp dụng cho mọi đơn hàng hoàn tất trên toàn hệ thống. Doanh thu/hoa hồng bên
-          dưới được tính trực tiếp từ đơn hàng đã hoàn tất trong khoảng thời gian chọn — chưa lưu lại
+          dưới được tính trực tiếp từ đơn hàng đã hoàn tất trong khoảng thời gian chọn, chưa lưu lại
           cho tới khi bạn tạo phiếu đối soát ở mục{" "}
           <a href="/admin/payouts" className="underline">
             Đối soát
