@@ -91,6 +91,17 @@ Thẻ test (ngân hàng NCB, do VNPay cấp kèm merchant):
 Cùng lưu ý về webhook (IPN) như MoMo ở trên — cần URL public thật (ngrok hoặc bản deploy Vercel),
 `localhost` thuần sẽ không nhận được xác nhận thanh toán.
 
+**Khác MoMo một điểm quan trọng: VNPay không cho gửi kèm `ipnUrl` riêng theo từng giao dịch** —
+toàn bộ merchant chỉ dùng đúng 1 IPN URL, cấu hình sẵn phía VNPay (mục "Cấu hình IPN URL" trong
+`sandbox.vnpayment.vn/vnpaygw-sit-testing`, hoặc tương đương trong Merchant Admin
+`sandbox.vnpayment.vn/merchantv2`). Vì vậy route `/api/payments/vnpay/ipn` xử lý chung cho cả 3
+loại thanh toán (đơn hàng, gói dịch vụ, quảng cáo) — tự nhận diện qua nội dung `vnp_OrderInfo`,
+không tách riêng theo route như MoMo. **URL cần đăng ký bên VNPay cho project này:**
+
+```
+https://doan-last-bite.vercel.app/api/payments/vnpay/ipn
+```
+
 ## Deploy
 
 - Vercel: import repo, thêm 3 biến môi trường ở trên vào Project Settings → Environment

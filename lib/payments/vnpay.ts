@@ -13,6 +13,29 @@ const TMN_CODE = process.env.VNPAY_TMN_CODE ?? "";
 const HASH_SECRET = process.env.VNPAY_HASH_SECRET ?? "";
 const PAYMENT_URL = process.env.VNPAY_URL ?? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
 
+// Same diacritic-stripping technique as lib/storage/image-upload.ts's
+// slugifyFilename() (NFD-normalize + drop combining marks, handle đ/Đ
+// separately since it has no NFD decomposition) — VNPay's own integration
+// docs require vnp_OrderInfo to be plain ASCII, no Vietnamese diacritics.
+// The original order-checkout flow's default text always respected this by
+// construction (never embeds a free-text Vietnamese name). The
+// subscription/ad flows built afterward broke that convention by embedding
+// a store/admin-chosen name (e.g. "Đối tác Kim Cương") straight into
+// orderInfo — live-caught: the ad-booking VNPay flow never confirmed
+// payment because of exactly this. Sanitizing once, here, inside
+// createVnpayPaymentUrl() itself, fixes every caller at once and prevents
+// the same class of bug for any future one.
+const DIACRITIC_MARKS_RE = new RegExp("[̀-ͯ]", "g");
+const D_WITH_STROKE_RE = /[dđĐ]/g;
+
+function toAsciiSafe(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(DIACRITIC_MARKS_RE, "")
+    .replace(D_WITH_STROKE_RE, (m) => (m === "Đ" ? "D" : "d"))
+    .replace(/[^\x20-\x7E]/g, "");
+}
+
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -94,10 +117,10 @@ export function createVnpayPaymentUrl(input: CreateVnpayPaymentInput): string {
     vnp_Locale: "vn",
     vnp_CurrCode: "VND",
     vnp_TxnRef: txnRef,
-    // No Vietnamese diacritics — kept plain ASCII on purpose, same reasoning
-    // as MoMo's orderInfo: one less thing that could differ in encoding
-    // between what's signed and what VNPay re-derives on their end.
-    vnp_OrderInfo: input.orderInfo ?? `LastBite thanh toan don hang ${input.orderId}`,
+    // Sanitized regardless of what the caller passed in — see toAsciiSafe()'s
+    // own comment above for why this has to be enforced here, not trusted
+    // to every call site.
+    vnp_OrderInfo: toAsciiSafe(input.orderInfo ?? `LastBite thanh toan don hang ${input.orderId}`),
     vnp_OrderType: "other",
     // VNPay wants the smallest currency unit — VND has no subunit in
     // practice, but their API still requires amount * 100.
