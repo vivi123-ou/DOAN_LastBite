@@ -433,3 +433,40 @@ export async function updateStatus(
   const { error } = await client.from("combos").update({ status }).eq("id", id);
   if (error) throw error;
 }
+
+// Lightweight relist — backs the bulk "Bán lại hàng loạt" flow
+// (dashboard/combos/_components/bulk-relist-dialog.tsx). Deliberately NOT
+// built on update()/BuiltCombo — a relist only ever needs a fresh stock
+// count and a fresh best_before window; name/description/items/images/
+// category/price all stay exactly as they already are (the single-combo
+// "Bán lại" flow *does* let you re-edit everything via the full combo form,
+// but requiring that for every item in a multi-select batch would defeat
+// the point of a bulk action). Resets current_price back to original_price
+// and status back to 'active', same as a brand-new listing.
+// combos_all_own RLS (0001) already scopes this to the caller's own store's
+// combos — same posture as update()/updateStatus() above, no extra
+// ownership check needed here.
+export async function relist(
+  client: SupabaseClient<Database>,
+  id: string,
+  input: { initialStock: number; bestBefore: Date }
+): Promise<void> {
+  const { data: combo, error: fetchError } = await client
+    .from("combos")
+    .select("original_price")
+    .eq("id", id)
+    .single();
+  if (fetchError) throw fetchError;
+
+  const { error } = await client
+    .from("combos")
+    .update({
+      initial_stock: input.initialStock,
+      remaining_stock: input.initialStock,
+      best_before: input.bestBefore.toISOString(),
+      current_price: combo.original_price,
+      status: "active",
+    })
+    .eq("id", id);
+  if (error) throw error;
+}

@@ -4,28 +4,19 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
 import { listByStore } from "@/lib/repositories/combo.repository";
+import { listCategories } from "@/lib/repositories/category.repository";
+import { suggestBestBefore } from "@/lib/pricing/lock-duration/lock-duration.policy";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Plus } from "lucide-react";
-import { ComboStatusToggle } from "@/app/(store)/dashboard/combos/_components/combo-status-toggle";
+import { CombosList } from "@/app/(store)/dashboard/combos/_components/combos-list";
 import type { Combo, ComboStatus } from "@/lib/domain/combo";
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: "Nháp",
-  active: "Đang bán",
-  locked: "Đã hết hạn",
-  sold_out: "Hết hàng",
-  paused: "Tạm ngưng",
-};
+const VALID_STATUSES: ComboStatus[] = ["draft", "active", "locked", "sold_out", "paused"];
 
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  draft: "outline",
-  active: "default",
-  locked: "destructive",
-  sold_out: "secondary",
-  paused: "secondary",
-};
+function parseStatus(raw: string | undefined): ComboStatus | undefined {
+  return VALID_STATUSES.find((s) => s === raw);
+}
 
 // There's no scheduled sweep that flips `status` to 'locked' once
 // `best_before` passes (documented, still-manual gap — see CLAUDE.md §7),
@@ -42,7 +33,14 @@ function displayStatus(combo: Combo): ComboStatus {
   return combo.status;
 }
 
-export default async function StoreCombosPage() {
+export default async function StoreCombosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>;
+}) {
+  const { q, status: rawStatus } = await searchParams;
+  const status = parseStatus(rawStatus);
+
   const supabase = await createClient();
   const userId = await getCurrentUserId(supabase);
   if (!userId) redirect("/login?next=/dashboard/combos");
@@ -50,7 +48,35 @@ export default async function StoreCombosPage() {
   const store = await getStoreByOwnerId(supabase, userId);
   if (!store) redirect("/dashboard");
 
-  const combos = await listByStore(supabase, store.id);
+  // A store's own combo count realistically stays small (tens, not
+  // thousands) — unlike the admin lists, this doesn't need real
+  // server-side pagination/index-backed search; a plain in-memory filter
+  // over listByStore()'s existing result is proportionate to the actual
+  // scale here.
+  const [allCombos, categories] = await Promise.all([
+    listByStore(supabase, store.id),
+    listCategories(supabase),
+  ]);
+  const categoryById = new Map(categories.map((c) => [c.id, c]));
+
+  const needle = q?.trim().toLowerCase();
+  const combos = allCombos.filter((combo) => {
+    if (needle && !combo.name.toLowerCase().includes(needle)) return false;
+    if (status && displayStatus(combo) !== status) return false;
+    return true;
+  });
+
+  // Every expired combo's own suggested relist time — computed once here
+  // (not on every checkbox toggle client-side) since it needs each
+  // combo's real Category row. Feeds both the per-row default and the bulk
+  // dialog's "same time for all" upper bound.
+  const suggestedBestBeforeByComboId: Record<string, string> = {};
+  for (const combo of combos) {
+    const category = categoryById.get(combo.categoryId);
+    if (category) {
+      suggestedBestBeforeByComboId[combo.id] = suggestBestBefore(category).toISOString();
+    }
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10">
@@ -67,45 +93,51 @@ export default async function StoreCombosPage() {
         />
       </div>
 
-      {combos.length === 0 ? (
+      <form method="get" className="flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          name="q"
+          placeholder="Tìm theo tên combo..."
+          defaultValue={q}
+          className="min-w-0 flex-1 rounded-md border px-3 py-1.5 text-sm sm:max-w-xs"
+        />
+        <select
+          name="status"
+          defaultValue={rawStatus ?? ""}
+          className="rounded-md border bg-background px-2.5 py-1.5 text-sm"
+        >
+          <option value="">Tất cả trạng thái</option>
+          <option value="active">Đang bán</option>
+          <option value="locked">Đã hết hạn</option>
+          <option value="sold_out">Hết hàng</option>
+          <option value="paused">Tạm dừng</option>
+          <option value="draft">Nháp</option>
+        </select>
+        <button
+          type="submit"
+          className="rounded-md bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground"
+        >
+          Lọc
+        </button>
+        {(q || status) && (
+          <a href="/dashboard/combos" className="text-sm text-muted-foreground underline underline-offset-2">
+            Xoá lọc
+          </a>
+        )}
+      </form>
+
+      {allCombos.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
             Bạn chưa có combo nào. Tạo combo đầu tiên để bắt đầu bán đồ ăn cuối ngày.
           </CardContent>
         </Card>
+      ) : combos.length === 0 ? (
+        <p className="py-10 text-center text-muted-foreground">
+          Không tìm thấy combo nào khớp bộ lọc.
+        </p>
       ) : (
-        <div className="space-y-3">
-          {combos.map((combo) => {
-            const status = displayStatus(combo);
-            return (
-              <Card key={combo.id}>
-                <CardHeader className="flex flex-row items-start justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-lg">{combo.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      {combo.currentPrice.toLocaleString("vi-VN")}đ · còn {combo.remainingStock} ·
-                      hạn dùng {new Date(combo.bestBefore).toLocaleString("vi-VN")}
-                    </p>
-                  </div>
-                  <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>
-                </CardHeader>
-                <CardContent className="flex items-center justify-between">
-                  <Button
-                    variant={status === "locked" ? "outline" : "ghost"}
-                    size="sm"
-                    nativeButton={false}
-                    render={
-                      <Link href={`/dashboard/combos/${combo.id}/edit`}>
-                        {status === "locked" ? "Bán lại" : "Chỉnh sửa"}
-                      </Link>
-                    }
-                  />
-                  <ComboStatusToggle comboId={combo.id} status={status} />
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <CombosList combos={combos} suggestedBestBeforeByComboId={suggestedBestBeforeByComboId} />
       )}
     </div>
   );

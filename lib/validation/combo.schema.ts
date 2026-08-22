@@ -61,3 +61,28 @@ export const createComboSchema = z
   });
 
 export type CreateComboFormValues = z.infer<typeof createComboSchema>;
+
+// Backs the bulk "Bán lại hàng loạt" flow — one row per selected combo,
+// each carrying just the two fields a relist genuinely needs (see
+// combo.repository.ts's relist() for why this is deliberately narrower
+// than createComboSchema). `bestBefore` has no upper-bound check here the
+// way createComboSchema's does — the client already computes/clamps it
+// against each combo's own category-suggested maximum before submitting
+// (bulk-relist-dialog.tsx), so by the time this reaches the server it's
+// already a valid choice; re-deriving the category here just to re-check
+// would mean an extra query per row for a case the UI already prevents.
+export const bulkRelistItemSchema = z.object({
+  comboId: z.string().uuid(),
+  initialStock: z.coerce
+    .number()
+    .int("Số lượng phải là số nguyên")
+    .min(1, "Số lượng phải từ 1 trở lên")
+    .max(999, "Số lượng tối đa 999 phần mỗi combo"),
+  bestBefore: z.string().datetime(),
+});
+
+export const bulkRelistSchema = z.object({
+  items: z.array(bulkRelistItemSchema).min(1, "Chưa chọn combo nào"),
+});
+
+export type BulkRelistFormValues = z.infer<typeof bulkRelistSchema>;

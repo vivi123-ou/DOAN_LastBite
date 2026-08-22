@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
-import { createComboSchema } from "@/lib/validation/combo.schema";
+import { createComboSchema, bulkRelistSchema } from "@/lib/validation/combo.schema";
 import { parseOrThrow } from "@/lib/validation/parse";
 import { getCategoryById } from "@/lib/repositories/category.repository";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
@@ -106,5 +106,33 @@ export async function toggleComboStatusAction(
 ) {
   const supabase = await createClient();
   await comboRepository.updateStatus(supabase, comboId, status);
+  revalidatePath("/dashboard/combos");
+}
+
+// Bulk "Bán lại hàng loạt" — relists many expired combos in one submit
+// instead of opening the full edit form N times. Deliberately its own,
+// narrower action (not a loop over updateComboAction): a relist only needs
+// a fresh stock count + best_before, not a full re-submission of
+// name/description/items/images/category/price for every row — see
+// combo.repository.ts's relist() for the same reasoning. `combos_all_own`
+// RLS (0001) already scopes every one of these updates to the caller's own
+// store, same as the single-combo actions above — no extra per-row
+// ownership check needed here.
+export async function bulkRelistAction(input: unknown) {
+  const parsed = parseOrThrow(bulkRelistSchema, input);
+
+  const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) throw new Error("Bạn cần đăng nhập trước.");
+
+  await Promise.all(
+    parsed.items.map((item) =>
+      comboRepository.relist(supabase, item.comboId, {
+        initialStock: item.initialStock,
+        bestBefore: new Date(item.bestBefore),
+      })
+    )
+  );
+
   revalidatePath("/dashboard/combos");
 }
