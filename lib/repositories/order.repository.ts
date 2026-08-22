@@ -225,7 +225,7 @@ export async function updateStatus(
       .single();
     if (fetchError) throw fetchError;
     if (existing.payment_status !== "success") {
-      throw new Error("Đơn hàng chưa thanh toán — không thể đánh dấu hoàn tất.");
+      throw new Error("Đơn hàng chưa thanh toán, không thể đánh dấu hoàn tất.");
     }
   }
 

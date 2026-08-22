@@ -43,8 +43,8 @@ export default async function AdminPayoutsPage({
         <h1 className="text-2xl font-bold">Đối soát & thanh toán cho cửa hàng</h1>
         <p className="text-sm text-muted-foreground">
           Mỗi phiếu là một lần chốt số cho một cửa hàng trong một khoảng thời gian (doanh thu gộp từ
-          đơn hoàn tất, trừ hoa hồng). Chưa có kết nối chuyển khoản tự động (VietQR/PayOS/Casso) — sau
-          khi chuyển khoản thủ công cho cửa hàng, đánh dấu phiếu là &quot;đã trả&quot; ở đây để lưu lại
+          đơn hoàn tất, trừ hoa hồng). Chưa có kết nối chuyển khoản tự động (VietQR/PayOS/Casso), nên
+          sau khi chuyển khoản thủ công cho cửa hàng, đánh dấu phiếu là &quot;đã trả&quot; ở đây để lưu lại
           lịch sử đối soát.
         </p>
       </div>

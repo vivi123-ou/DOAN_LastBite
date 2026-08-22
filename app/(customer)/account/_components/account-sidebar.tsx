@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Leaf, Receipt, Star, User } from "lucide-react";
+import { Leaf, MapPin, Receipt, Star, User } from "lucide-react";
 
 // "Lịch sử đơn hàng" points at the existing /orders page rather than a
 // duplicate list nested under /account — that page already works end to
@@ -11,6 +11,7 @@ import { Leaf, Receipt, Star, User } from "lucide-react";
 // visual language between the two sidebar levels this app now has.
 const ITEMS = [
   { href: "/account", label: "Thông tin tài khoản", icon: User, exact: true },
+  { href: "/account/addresses", label: "Địa chỉ của tôi", icon: MapPin, exact: false },
   { href: "/orders", label: "Lịch sử đơn hàng", icon: Receipt, exact: false },
   { href: "/account/net-zero", label: "Điểm Net Zero", icon: Leaf, exact: false },
   { href: "/account/reviews", label: "Đánh giá đơn hàng", icon: Star, exact: false },

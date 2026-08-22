@@ -3,6 +3,8 @@ import type { Database } from "@/types/database.types";
 import type { GroupOrderInvite, GroupOrderParticipant } from "@/lib/domain/social";
 import { listTiersForStore, resolveTier } from "@/lib/repositories/bulk-discount.repository";
 
+type GroupOrderStatus = Database["public"]["Tables"]["group_orders"]["Row"]["status"];
+
 // group_orders' own RLS (group_orders_all_initiator) would actually let the
 // initiator create their own row with the regular client, but
 // group_order_participants has *zero* client-facing INSERT policy at all
@@ -61,6 +63,25 @@ export async function join(
   if (error) throw error;
 }
 
+// Lazy sweep, same no-cron-infrastructure posture as best-before locking,
+// subscription expiry, and Net Zero point expiry elsewhere in this app —
+// there's no scheduled job anywhere in this codebase, so "finalize
+// automatically at deadline" (business-rules.md) means "the next time
+// anyone reads this group order, if its deadline has passed, the DB status
+// column actually gets written to 'finalized' right then." Both read paths
+// below (getInvite, resolveCheckoutDiscount) already independently treated
+// a past-deadline row as unusable — this makes that real in the stored
+// data too, not just in each caller's own local check.
+async function sweepIfExpired(
+  admin: SupabaseClient<Database>,
+  row: { id: string; status: GroupOrderStatus; deadline: string }
+): Promise<GroupOrderStatus> {
+  if (row.status !== "open" || new Date(row.deadline) > new Date()) return row.status;
+  const { error } = await admin.from("group_orders").update({ status: "finalized" }).eq("id", row.id);
+  if (error) throw error;
+  return "finalized";
+}
+
 // Renders the invite card inside a chat message (chat-view.tsx) — the
 // recipient hasn't joined yet, so group_orders_select_participant RLS
 // wouldn't let their own client session read this row. Server-side only,
@@ -81,6 +102,8 @@ export async function getInvite(
     .maybeSingle();
   if (error) throw error;
   if (!row) return null;
+
+  const status = await sweepIfExpired(adminClient, row);
 
   const [{ data: store }, { data: combo }, { data: participantRows }, tiers] = await Promise.all([
     adminClient.from("stores").select("name").eq("id", row.store_id).maybeSingle(),
@@ -124,7 +147,7 @@ export async function getInvite(
     comboId: row.combo_id,
     comboName: combo?.name ?? null,
     deadline: row.deadline,
-    status: row.status,
+    status,
     participantCount: participants.length,
     isViewerParticipant: Boolean(viewer),
     participants,
@@ -150,7 +173,10 @@ export async function resolveCheckoutDiscount(
     .eq("id", groupOrderId)
     .maybeSingle();
   if (error) throw error;
-  if (!row || row.status !== "open" || new Date(row.deadline) <= new Date()) return null;
+  if (!row) return null;
+
+  const status = await sweepIfExpired(adminClient, { id: groupOrderId, status: row.status, deadline: row.deadline });
+  if (status !== "open") return null;
 
   const { data: participantRows, error: participantsError } = await adminClient
     .from("group_order_participants")

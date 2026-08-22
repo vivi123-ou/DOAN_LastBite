@@ -36,7 +36,7 @@ export default async function NetZeroPage() {
       <div>
         <h1 className="text-2xl font-bold">Điểm Net Zero</h1>
         <p className="text-sm text-muted-foreground">
-          Mỗi đơn hàng thành công tích điểm theo giá trị đơn — dùng điểm để giảm giá cho lần mua
+          Mỗi đơn hàng thành công tích điểm theo giá trị đơn, dùng điểm để giảm giá cho lần mua
           tiếp theo.
         </p>
       </div>
@@ -60,8 +60,8 @@ export default async function NetZeroPage() {
             thanh toán thành công) bạn nhận <strong className="text-foreground">1 điểm</strong>.
           </p>
           <p>
-            Điểm có hạn sử dụng <strong className="text-foreground">1 năm</strong> kể từ ngày tích —
-            điểm chưa dùng sẽ tự hết hạn sau đó.
+            Điểm có hạn sử dụng <strong className="text-foreground">1 năm</strong> kể từ ngày tích.
+            Điểm chưa dùng sẽ tự hết hạn sau đó.
           </p>
         </CardContent>
       </Card>
@@ -73,8 +73,8 @@ export default async function NetZeroPage() {
             <strong>{nextExpiry.points.toLocaleString("vi-VN")} điểm</strong> sẽ hết hạn vào tháng{" "}
             <strong>
               {new Date(nextExpiry.date).getMonth() + 1}/{new Date(nextExpiry.date).getFullYear()}
-            </strong>{" "}
-            — nhớ dùng trước khi hết hạn nhé!
+            </strong>
+            , nhớ dùng trước khi hết hạn nhé!
           </span>
         </div>
       )}

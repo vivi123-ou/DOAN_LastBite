@@ -9,9 +9,10 @@ import type { BulkDiscountTier } from "@/lib/domain/store";
 //
 // Store-specific tiers take precedence over the platform-wide default
 // (store_id is null) whenever the store has configured any of its own —
-// there's still no store-dashboard UI to create those yet (see CLAUDE.md's
-// "Phase 4 remaining work"), so in practice every store resolves to the
-// platform default seeded by 0021_bulk_discount_default_tiers.sql today.
+// /dashboard/pricing lets a store owner do that (see createTier/updateTier/
+// deleteTier below); a store that never bothers configuring anything just
+// keeps resolving to the platform default seeded by
+// 0021_bulk_discount_default_tiers.sql, same as before.
 export async function listTiersForStore(
   client: SupabaseClient<Database>,
   storeId: string
@@ -31,6 +32,69 @@ export async function listTiersForStore(
     .order("min_quantity");
   if (defaultError) throw defaultError;
   return defaultTiers.map(mapTier);
+}
+
+// The store's own configured tiers only — never falls back to the platform
+// default, unlike listTiersForStore() above. Backs the new
+// /dashboard/pricing config page, which needs to show "you have none yet"
+// distinctly from "here's what you've set", not the resolved-for-checkout
+// value.
+export async function listOwnTiers(
+  client: SupabaseClient<Database>,
+  storeId: string
+): Promise<BulkDiscountTier[]> {
+  const { data, error } = await client
+    .from("bulk_discount_tiers")
+    .select("id, store_id, min_quantity, discount_pct")
+    .eq("store_id", storeId)
+    .order("min_quantity");
+  if (error) throw error;
+  return data.map(mapTier);
+}
+
+export async function listPlatformDefaultTiers(
+  client: SupabaseClient<Database>
+): Promise<BulkDiscountTier[]> {
+  const { data, error } = await client
+    .from("bulk_discount_tiers")
+    .select("id, store_id, min_quantity, discount_pct")
+    .is("store_id", null)
+    .order("min_quantity");
+  if (error) throw error;
+  return data.map(mapTier);
+}
+
+// bulk_discount_tiers_all_owner RLS (0001) already scopes insert/update/
+// delete to `store_id`s the caller actually owns (and structurally can't
+// ever touch the store_id IS NULL platform-default rows — its `with check`
+// requires a real ownership join) — regular client, no admin escalation
+// needed for any of the three writes below.
+export async function createTier(
+  client: SupabaseClient<Database>,
+  storeId: string,
+  input: { minQuantity: number; discountPct: number }
+): Promise<void> {
+  const { error } = await client
+    .from("bulk_discount_tiers")
+    .insert({ store_id: storeId, min_quantity: input.minQuantity, discount_pct: input.discountPct });
+  if (error) throw error;
+}
+
+export async function updateTier(
+  client: SupabaseClient<Database>,
+  tierId: string,
+  input: { minQuantity: number; discountPct: number }
+): Promise<void> {
+  const { error } = await client
+    .from("bulk_discount_tiers")
+    .update({ min_quantity: input.minQuantity, discount_pct: input.discountPct })
+    .eq("id", tierId);
+  if (error) throw error;
+}
+
+export async function deleteTier(client: SupabaseClient<Database>, tierId: string): Promise<void> {
+  const { error } = await client.from("bulk_discount_tiers").delete().eq("id", tierId);
+  if (error) throw error;
 }
 
 function mapTier(row: {

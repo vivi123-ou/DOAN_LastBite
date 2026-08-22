@@ -58,7 +58,7 @@ export function AddToCartButton({ item, disabled, groupOrderId, isOwnStore, isAd
   function addToCart() {
     cart.addItem({ ...item, quantity: 1 });
     if (groupOrderId) {
-      toast.success(`Đã thêm "${item.name}" vào giỏ hàng — tiếp tục đặt hàng theo nhóm.`);
+      toast.success(`Đã thêm "${item.name}" vào giỏ hàng. Tiếp tục đặt hàng theo nhóm.`);
       router.push(`/cart?groupOrderId=${groupOrderId}`);
     } else {
       toast.success(`Đã thêm "${item.name}" vào giỏ hàng.`);
@@ -71,7 +71,7 @@ export function AddToCartButton({ item, disabled, groupOrderId, isOwnStore, isAd
       return;
     }
     if (isOwnStore) {
-      toast.error("Đây là combo của cửa hàng bạn — không thể tự mua.");
+      toast.error("Đây là combo của cửa hàng bạn, không thể tự mua.");
       return;
     }
     if (cart.storeId && cart.storeId !== item.storeId) {

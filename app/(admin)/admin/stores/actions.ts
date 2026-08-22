@@ -10,6 +10,7 @@ import {
   updateStoreActive,
   bulkSetStoreVerification,
 } from "@/lib/repositories/admin.repository";
+import { grantFreeTrialIfEligible } from "@/lib/repositories/subscription.repository";
 import type { Database } from "@/types/database.types";
 
 type VerificationStatus = Database["public"]["Tables"]["stores"]["Row"]["verification_status"];
@@ -28,7 +29,13 @@ async function requireAdmin() {
 
 export async function setStoreVerificationAction(storeId: string, status: VerificationStatus) {
   await requireAdmin();
-  await updateStoreVerification(createAdminClient(), storeId, status);
+  const admin = createAdminClient();
+  await updateStoreVerification(admin, storeId, status);
+  // Best-effort, and only on the transition that actually matters — a
+  // free-trial-grant hiccup should never block the approval action itself.
+  if (status === "verified") {
+    await grantFreeTrialIfEligible(admin, storeId).catch(() => {});
+  }
   revalidatePath("/admin/stores");
 }
 
@@ -40,6 +47,10 @@ export async function setStoreActiveAction(storeId: string, isActive: boolean) {
 
 export async function bulkSetStoreVerificationAction(storeIds: string[], status: VerificationStatus) {
   await requireAdmin();
-  await bulkSetStoreVerification(createAdminClient(), storeIds, status);
+  const admin = createAdminClient();
+  await bulkSetStoreVerification(admin, storeIds, status);
+  if (status === "verified") {
+    await Promise.all(storeIds.map((id) => grantFreeTrialIfEligible(admin, id).catch(() => {})));
+  }
   revalidatePath("/admin/stores");
 }

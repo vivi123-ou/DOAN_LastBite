@@ -34,6 +34,7 @@ interface ChatViewProps {
   friendshipId: string;
   currentUserId: string;
   isAccepted: boolean;
+  isBlocked: boolean;
   otherName: string;
   otherAvatarUrl: string | null;
   initialMessages: Message[];
@@ -44,6 +45,7 @@ export function ChatView({
   friendshipId,
   currentUserId,
   isAccepted,
+  isBlocked,
   otherName,
   otherAvatarUrl,
   initialMessages,
@@ -204,7 +206,11 @@ export function ChatView({
         <div ref={bottomRef} />
       </div>
 
-      {isAccepted ? (
+      {isBlocked ? (
+        <p className="border-t p-3 text-center text-sm text-muted-foreground">
+          Không thể nhắn tin, cuộc trò chuyện này đã bị chặn.
+        </p>
+      ) : isAccepted ? (
         <form onSubmit={handleSend} className="flex items-center gap-2 border-t p-3">
           <Button type="button" variant="outline" size="icon" onClick={() => setInviteOpen(true)} title="Mời mua chung">
             <Gift className="size-4" />
@@ -260,7 +266,7 @@ export function ChatView({
                 onValueChange={(v) => setComboId(v ?? "")}
                 items={storeCombos.map((c) => ({
                   value: c.comboId,
-                  label: `${c.name} — ${c.currentPrice.toLocaleString("vi-VN")}đ`,
+                  label: `${c.name} · ${c.currentPrice.toLocaleString("vi-VN")}đ`,
                 }))}
                 disabled={!storeId}
               >
@@ -272,7 +278,7 @@ export function ChatView({
                 <SelectContent>
                   {storeCombos.map((c) => (
                     <SelectItem key={c.comboId} value={c.comboId}>
-                      {c.name} — {c.currentPrice.toLocaleString("vi-VN")}đ
+                      {c.name} · {c.currentPrice.toLocaleString("vi-VN")}đ
                     </SelectItem>
                   ))}
                 </SelectContent>

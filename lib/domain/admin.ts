@@ -57,6 +57,11 @@ export interface AdminReportSummary {
   createdAt: string;
   resolvedAt: string | null;
   adminNote: string | null;
+  imageUrls: string[];
+  // The store owner's own reply, if they posted one before an admin got to
+  // it (dashboard/feedback's respondToReportAction) — surfaced here so an
+  // admin sees both sides before resolving.
+  storeResponse: string | null;
 }
 
 export interface AdminUserSummary {

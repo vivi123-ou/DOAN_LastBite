@@ -46,6 +46,12 @@ export default async function StoreSubscriptionPage() {
     getEffectiveSubscription(admin, store.id),
   ]);
 
+  // The one free-trial row (grantFreeTrialIfEligible, granted automatically
+  // when an admin verifies the store) looks like any other active row
+  // except amount_paid = 0 — flagged here purely for a clearer badge/label,
+  // no different underlying entitlement than a real Premium purchase.
+  const isTrialActive = current?.status === "active" && current.amountPaid === 0 && !effective.locked;
+
   // Grouped by tier (not a flat list) — since 0031 added a yearly variant
   // alongside the existing monthly one for Basic/Premium, a flat 5-card
   // grid would read as 5 unrelated options instead of "3 tiers, 2 billing
@@ -78,7 +84,8 @@ export default async function StoreSubscriptionPage() {
         <CardContent className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-lg font-semibold text-primary">{effective.planName}</span>
-            {effective.locked && <Badge variant="destructive">Đã hết hạn — bị khoá</Badge>}
+            {isTrialActive && <Badge variant="outline">Dùng thử miễn phí</Badge>}
+            {effective.locked && <Badge variant="destructive">Đã hết hạn, bị khoá</Badge>}
           </div>
           <p className="text-sm text-muted-foreground">
             {effective.maxActiveCombos === null
@@ -87,17 +94,21 @@ export default async function StoreSubscriptionPage() {
           </p>
           {effective.expiresAt && (
             <p className="text-sm text-muted-foreground">
-              {effective.locked ? "Đã hết hạn vào" : "Hết hạn vào"}{" "}
+              {effective.locked
+                ? "Đã hết hạn vào"
+                : isTrialActive
+                  ? "Dùng thử miễn phí đến"
+                  : "Hết hạn vào"}{" "}
               <strong>{new Date(effective.expiresAt).toLocaleDateString("vi-VN")}</strong>
               {effective.daysUntilExpiry !== null && effective.daysUntilExpiry >= 0 && (
-                <> — còn {effective.daysUntilExpiry} ngày</>
+                <> · còn {effective.daysUntilExpiry} ngày</>
               )}
             </p>
           )}
           {effective.locked && (
             <p className="flex items-center gap-1.5 text-sm text-destructive">
               <AlertTriangle className="size-4 shrink-0" />
-              Gói đã hết hạn — không thể đăng combo mới cho tới khi gia hạn.
+              Gói đã hết hạn. Không thể đăng combo mới cho tới khi gia hạn.
             </p>
           )}
           {current?.status === "pending_payment" && (

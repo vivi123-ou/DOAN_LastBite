@@ -6,6 +6,7 @@ import { Flag, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { submitReviewAction } from "@/app/(customer)/orders/[id]/actions";
+import { ReviewImageUploader } from "@/app/(customer)/orders/[id]/_components/review-image-uploader";
 import type { ComboReview } from "@/lib/domain/review";
 
 interface ReviewFormProps {
@@ -13,16 +14,18 @@ interface ReviewFormProps {
   orderItemId: string;
   comboName: string;
   existingReview: ComboReview | null;
+  userId: string;
 }
 
 // Only ever rendered for a 'completed' order (see the order detail page) —
 // "mua xong sử dụng xong" per the explicit request. One submission per
 // order line (combo_reviews' unique(order_item_id, customer_id)); once
 // submitted this renders the read-only result instead of the form again.
-export function ReviewForm({ orderId, orderItemId, comboName, existingReview }: ReviewFormProps) {
+export function ReviewForm({ orderId, orderItemId, comboName, existingReview, userId }: ReviewFormProps) {
   const [mode, setMode] = useState<"closed" | "review" | "report">("closed");
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState<ComboReview | null>(existingReview);
 
@@ -46,6 +49,20 @@ export function ReviewForm({ orderId, orderItemId, comboName, existingReview }: 
           </p>
         )}
         {submitted.comment && <p className="mt-1 text-foreground">{submitted.comment}</p>}
+        {submitted.imageUrls.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {submitted.imageUrls.map((url) => (
+              // eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL
+              <img key={url} src={url} alt="" className="size-16 rounded-md border object-cover" />
+            ))}
+          </div>
+        )}
+        {submitted.storeResponse && (
+          <p className="mt-2 rounded-md border border-primary/30 bg-primary/5 p-2 text-foreground">
+            <span className="font-medium text-primary">Phản hồi từ cửa hàng: </span>
+            {submitted.storeResponse}
+          </p>
+        )}
       </div>
     );
   }
@@ -67,6 +84,7 @@ export function ReviewForm({ orderId, orderItemId, comboName, existingReview }: 
         kind,
         rating: kind === "review" ? rating : undefined,
         comment: comment || undefined,
+        imageUrls,
       });
       setSubmitted({
         id: "local",
@@ -81,6 +99,10 @@ export function ReviewForm({ orderId, orderItemId, comboName, existingReview }: 
         rating: kind === "review" ? rating : null,
         comment: comment || null,
         createdAt: new Date().toISOString(),
+        imageUrls,
+        storeResponse: null,
+        storeRespondedAt: null,
+        resolvedAt: null,
       });
       toast.success(kind === "review" ? "Đã gửi đánh giá, cảm ơn bạn!" : "Đã gửi báo cáo.");
     } catch (err) {
@@ -126,6 +148,7 @@ export function ReviewForm({ orderId, orderItemId, comboName, existingReview }: 
         placeholder={mode === "review" ? "Chia sẻ cảm nhận của bạn (tuỳ chọn)..." : "Mô tả vấn đề bạn gặp phải..."}
         rows={2}
       />
+      <ReviewImageUploader userId={userId} value={imageUrls} onChange={setImageUrls} />
       <div className="flex gap-2">
         <Button type="button" size="sm" disabled={submitting} onClick={() => handleSubmit(mode)}>
           {submitting ? "Đang gửi..." : "Gửi"}

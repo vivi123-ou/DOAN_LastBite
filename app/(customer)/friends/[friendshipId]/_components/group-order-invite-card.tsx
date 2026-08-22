@@ -37,7 +37,7 @@ function tierMessage(invite: GroupOrderInvite): string | null {
   }
   if (invite.currentTier && invite.nextTier) {
     const remaining = invite.nextTier.minQuantity - invite.totalQuantity;
-    return `Đang giảm ${invite.currentTier.discountPct}% — mua thêm ${remaining} phần nữa để được giảm ${invite.nextTier.discountPct}%.`;
+    return `Đang giảm ${invite.currentTier.discountPct}%. Mua thêm ${remaining} phần nữa để được giảm ${invite.nextTier.discountPct}%.`;
   }
   if (invite.nextTier) {
     const remaining = invite.nextTier.minQuantity - invite.totalQuantity;

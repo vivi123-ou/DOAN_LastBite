@@ -189,6 +189,7 @@ export interface Database {
           status: "pending" | "accepted" | "rejected";
           created_at: string;
           responded_at: string | null;
+          blocked_by: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["friendships"]["Row"]> & {
           requester_id: string;
@@ -358,6 +359,9 @@ export interface Database {
           // looked-at. Only meaningful for kind = 'report'.
           resolved_at: string | null;
           admin_note: string | null;
+          image_urls: string[];
+          store_response: string | null;
+          store_responded_at: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["combo_reviews"]["Row"]> & {
           order_id: string;
@@ -683,6 +687,16 @@ export interface Database {
           created_at: string;
           order_count: number;
           total_count: number;
+        }[];
+      };
+      nearby_customer_ids: {
+        Args: {
+          in_lat: number;
+          in_lng: number;
+          radius_m?: number;
+        };
+        Returns: {
+          user_id: string;
         }[];
       };
     };

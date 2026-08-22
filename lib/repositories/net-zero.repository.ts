@@ -36,13 +36,18 @@ export async function getSummary(
 // the caller's own store with the regular client — no admin client needed.
 export async function getStoreImpact(
   client: SupabaseClient<Database>,
-  storeId: string
+  storeId: string,
+  // Optional period bound — added for the monthly report (report.repository.ts),
+  // which needs "this store's Net Zero impact in calendar month X," not the
+  // all-time total the dashboard overview card already shows. Omitted by
+  // every existing caller, so this stays a pure additive change.
+  periodStart?: string,
+  periodEndExclusive?: string
 ): Promise<StoreNetZeroImpact> {
-  const { data: orders, error: ordersError } = await client
-    .from("orders")
-    .select("id")
-    .eq("store_id", storeId)
-    .eq("payment_status", "success");
+  let query = client.from("orders").select("id").eq("store_id", storeId).eq("payment_status", "success");
+  if (periodStart) query = query.gte("created_at", periodStart);
+  if (periodEndExclusive) query = query.lt("created_at", periodEndExclusive);
+  const { data: orders, error: ordersError } = await query;
   if (ordersError) throw ordersError;
   if (orders.length === 0) return { totalCo2SavedKg: 0, totalFoodRescuedKg: 0, orderCount: 0 };
 

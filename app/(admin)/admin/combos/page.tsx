@@ -54,7 +54,7 @@ export default async function AdminCombosPage({
       <div>
         <h1 className="text-2xl font-bold">Combo toàn hệ thống</h1>
         <p className="text-sm text-muted-foreground">
-          {totalCount} combo khớp bộ lọc — giá hiển thị là giá động tính tại thời điểm tải trang này.
+          {totalCount} combo khớp bộ lọc. Giá hiển thị là giá động tính tại thời điểm tải trang này.
         </p>
       </div>
 

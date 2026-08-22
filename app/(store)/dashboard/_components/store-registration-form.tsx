@@ -65,7 +65,7 @@ export function StoreRegistrationForm() {
         <CardDescription>
           Cửa hàng cần được xác minh trước khi có thể đăng bán combo. Sau khi gửi, đội ngũ
           LastBite sẽ xét duyệt thông tin của bạn. Thông tin điền ở đây dùng chung với mục
-          &quot;Thông tin cửa hàng&quot; sau này — bạn có thể thêm ảnh logo/banner ở đó khi cửa
+          &quot;Thông tin cửa hàng&quot; sau này. Bạn có thể thêm ảnh logo/banner ở đó khi cửa
           hàng đã được tạo.
         </CardDescription>
       </CardHeader>

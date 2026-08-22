@@ -33,6 +33,7 @@ export default async function FriendsPage() {
       <FriendsView
         initialFriendships={friendships}
         unreadCounts={Object.fromEntries(unreadCounts)}
+        currentUserId={userId}
       />
     </div>
   );

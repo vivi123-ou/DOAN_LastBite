@@ -121,6 +121,75 @@ export async function remove(client: SupabaseClient<Database>, friendshipId: str
   if (error) throw error;
 }
 
+// Reuses the existing rejected row via UPDATE instead of a fresh INSERT —
+// friendships' unique(requester_id, addressee_id) (0010) would otherwise
+// reject a second row for the exact same pair, permanently blocking a
+// resend after one rejection. friendships_update_either_party RLS (0033)
+// permits this regardless of which direction the original request went.
+export async function resendRequest(
+  client: SupabaseClient<Database>,
+  friendshipId: string,
+  requesterId: string,
+  addresseeId: string
+): Promise<FriendshipRow> {
+  const { data, error } = await client
+    .from("friendships")
+    .update({
+      requester_id: requesterId,
+      addressee_id: addresseeId,
+      status: "pending",
+      responded_at: null,
+      blocked_by: null,
+    })
+    .eq("id", friendshipId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// Block, when a friendship row already exists between the two (any status)
+// — folds the block into that same row rather than a parallel table, since
+// "blocked" is really "this pair's relationship, plus a flag," not a
+// separate concept. Also severs any existing accepted friendship (status
+// -> 'rejected') — staying "accepted" while one side has blocked the other
+// would be a contradiction.
+export async function blockExisting(
+  client: SupabaseClient<Database>,
+  friendshipId: string,
+  blockerId: string
+): Promise<void> {
+  const { error } = await client
+    .from("friendships")
+    .update({ status: "rejected", blocked_by: blockerId, responded_at: new Date().toISOString() })
+    .eq("id", friendshipId);
+  if (error) throw error;
+}
+
+// Block, when there was never any friendship row at all — friendships_insert_own
+// RLS requires requester_id = auth.uid(), so the blocker is always the
+// inserted row's requester here regardless of who would have sent a request
+// in a friendlier world.
+export async function blockNew(
+  client: SupabaseClient<Database>,
+  blockerId: string,
+  otherId: string
+): Promise<void> {
+  const { error } = await client.from("friendships").insert({
+    requester_id: blockerId,
+    addressee_id: otherId,
+    status: "rejected",
+    blocked_by: blockerId,
+    responded_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
+export async function unblock(client: SupabaseClient<Database>, friendshipId: string): Promise<void> {
+  const { error } = await client.from("friendships").update({ blocked_by: null }).eq("id", friendshipId);
+  if (error) throw error;
+}
+
 export async function listFriendships(
   client: SupabaseClient<Database>,
   adminClient: SupabaseClient<Database>,
@@ -153,6 +222,7 @@ export async function listFriendships(
       avatarUrl: other?.avatar_url ?? null,
       status: row.status as FriendshipStatus,
       isIncomingRequest: row.status === "pending" && row.addressee_id === userId,
+      blockedBy: row.blocked_by,
     };
   });
 }

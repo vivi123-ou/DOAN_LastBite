@@ -40,7 +40,7 @@ export function BankAccountForm({ bankAccount }: { bankAccount: StoreBankAccount
     <form onSubmit={handleSubmit} className="space-y-4">
       <p className="text-sm text-muted-foreground">
         LastBite dùng thông tin này để chuyển khoản tiền bán hàng (sau khi trừ hoa hồng) cho cửa
-        hàng theo từng đợt đối soát — xem lịch sử ở mục &quot;Doanh thu &amp; hoa hồng&quot;. Thông
+        hàng theo từng đợt đối soát. Xem lịch sử ở mục &quot;Doanh thu &amp; hoa hồng&quot;. Thông
         tin này chỉ hiển thị cho bạn và đội ngũ quản trị LastBite, không hiển thị công khai.
       </p>
 

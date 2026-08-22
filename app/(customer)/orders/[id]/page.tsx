@@ -120,6 +120,7 @@ export default async function OrderDetailPage({
                   orderItemId={item.id}
                   comboName={item.comboName}
                   existingReview={reviewByOrderItem.get(item.id) ?? null}
+                  userId={userId}
                 />
               )}
             </div>

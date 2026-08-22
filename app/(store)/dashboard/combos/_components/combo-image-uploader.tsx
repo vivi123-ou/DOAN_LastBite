@@ -25,11 +25,11 @@ export function ComboImageUploader({ storeId, value, onChange }: ComboImageUploa
 
     for (const file of Array.from(files)) {
       if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-        setError(`"${file.name}" không đúng định dạng — chỉ nhận ảnh JPG, PNG hoặc WEBP.`);
+        setError(`"${file.name}" không đúng định dạng. Chỉ nhận ảnh JPG, PNG hoặc WEBP.`);
         continue;
       }
       if (file.size > MAX_IMAGE_SIZE_BYTES) {
-        setError(`"${file.name}" vượt quá 5MB — vui lòng chọn ảnh nhỏ hơn.`);
+        setError(`"${file.name}" vượt quá 5MB. Vui lòng chọn ảnh nhỏ hơn.`);
         continue;
       }
 

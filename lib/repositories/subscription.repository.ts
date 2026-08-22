@@ -351,7 +351,7 @@ export async function checkAndNotifyExpiringSoon(
       userId: ownerId,
       type: "subscription_expiring_soon",
       title: "Gói dịch vụ sắp hết hạn",
-      body: `Gói dịch vụ của cửa hàng bạn sẽ hết hạn vào ${expiresAt.toLocaleDateString("vi-VN")} — gia hạn ngay để không bị khoá tính năng đăng combo mới.`,
+      body: `Gói dịch vụ của cửa hàng bạn sẽ hết hạn vào ${expiresAt.toLocaleDateString("vi-VN")}. Gia hạn ngay để không bị khoá tính năng đăng combo mới.`,
       payload: { storeId },
     }).catch(() => {});
   }
@@ -360,6 +360,79 @@ export async function checkAndNotifyExpiringSoon(
     .from("store_subscriptions")
     .update({ renewal_notified_at: new Date().toISOString() })
     .eq("id", activeRow.id);
+}
+
+// A store gets exactly one free taste of Premium the moment an admin
+// verifies it — direct answer to explicit feedback that the plan
+// descriptions alone weren't compelling enough to get a store to try
+// paying for one. Deliberately NOT tied to the ads module (still deferred,
+// see CLAUDE.md) — this only grants the existing Premium tier's own perks
+// (unlimited active combos, restock suggestions, Net Zero impact stats,
+// the "Đối tác Premium" badge), nothing ads-related.
+export const FREE_TRIAL_DAYS = 14;
+
+// Eligibility is "has this store ever had ANY store_subscriptions row at
+// all" (trial or real, any status) — so this only ever fires once per
+// store, and a store that already bought/tried a plan before this feature
+// existed doesn't retroactively get a trial stacked on top. Best-effort at
+// the call site (admin/stores/actions.ts): a trial-grant hiccup should
+// never block the actual store-approval action it rides along with.
+export async function grantFreeTrialIfEligible(
+  admin: SupabaseClient<Database>,
+  storeId: string
+): Promise<void> {
+  const { count, error } = await admin
+    .from("store_subscriptions")
+    .select("id", { count: "exact", head: true })
+    .eq("store_id", storeId);
+  if (error) throw error;
+  if ((count ?? 0) > 0) return;
+
+  // Prefer the shortest-duration active Premium plan (the monthly one, if
+  // more than one Premium variant ever exists) as the trial's own plan —
+  // matches what markSubscriptionPaid() would activate for a real monthly
+  // purchase, so the trial behaves exactly like "Premium," not a special
+  // fourth tier.
+  const { data: premiumPlan, error: planError } = await admin
+    .from("subscription_plans")
+    .select("id")
+    .eq("tier", "premium")
+    .eq("is_active", true)
+    .order("duration_days", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (planError) throw planError;
+  if (!premiumPlan) return;
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + FREE_TRIAL_DAYS * 86_400_000);
+
+  const { error: insertError } = await admin.from("store_subscriptions").insert({
+    store_id: storeId,
+    plan_id: premiumPlan.id,
+    status: "active",
+    started_at: now.toISOString(),
+    expires_at: expiresAt.toISOString(),
+    amount_paid: 0,
+  });
+  if (insertError) throw insertError;
+
+  // Cosmetic sync only, same as markSubscriptionPaid() — best-effort.
+  await admin.from("stores").update({ tier: "premium" }).eq("id", storeId).then(
+    () => {},
+    () => {}
+  );
+
+  const ownerId = await getOwnerIdById(admin, storeId);
+  if (ownerId) {
+    await createNotification(admin, {
+      userId: ownerId,
+      type: "subscription_activated",
+      title: `Tặng bạn ${FREE_TRIAL_DAYS} ngày dùng thử Premium miễn phí`,
+      body: `Cửa hàng của bạn vừa được xác minh. Trải nghiệm trọn vẹn gói Premium (không giới hạn combo đang bán, gợi ý nhập hàng, tác động Net Zero) đến hết ngày ${expiresAt.toLocaleDateString("vi-VN")}, hoàn toàn miễn phí.`,
+      payload: { storeId },
+    }).catch(() => {});
+  }
 }
 
 export interface AdminSubscriptionListFilter {

@@ -67,7 +67,7 @@ export function SiteFooter() {
             LastBite
           </div>
           <p className="text-sm text-muted-foreground">
-            Kết nối bạn với combo đồ ăn, thức uống cuối ngày còn ngon từ cửa hàng gần bạn — tiết
+            Kết nối bạn với combo đồ ăn, thức uống cuối ngày còn ngon từ cửa hàng gần bạn. Tiết
             kiệm chi phí, giảm lãng phí thực phẩm, hướng tới Net Zero.
           </p>
           <div className="flex items-center gap-2 pt-1">
@@ -110,7 +110,7 @@ export function SiteFooter() {
       </div>
 
       <div className="border-t px-4 py-4 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} LastBite — Đồ án tốt nghiệp, Trường Đại học Mở TP.HCM (OU).
+        © {new Date().getFullYear()} LastBite · Đồ án tốt nghiệp, Trường Đại học Mở TP.HCM (OU).
       </div>
     </footer>
   );

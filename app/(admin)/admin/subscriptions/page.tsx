@@ -44,7 +44,7 @@ export default async function AdminSubscriptionsPage({
         <h1 className="text-2xl font-bold">Trạng thái đăng ký gói</h1>
         <p className="text-sm text-muted-foreground">
           Gói mới nhất của từng cửa hàng đã từng mua gói. Cửa hàng chưa từng mua gói nào không hiện
-          ở đây — coi như đang dùng gói Free mặc định. {totalCount} cửa hàng khớp bộ lọc.
+          ở đây, coi như đang dùng gói Free mặc định. {totalCount} cửa hàng khớp bộ lọc.
         </p>
       </div>
 

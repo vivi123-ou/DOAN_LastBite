@@ -48,8 +48,8 @@ export function SimulatePaymentButton({ orderId }: { orderId: string }) {
   return (
     <div className="space-y-3 rounded-md border border-dashed p-4">
       <p className="text-sm text-muted-foreground">
-        Thanh toán qua {selected.label} (môi trường thử nghiệm — sandbox, chưa phải giao dịch
-        thật). Bạn sẽ được chuyển sang trang thanh toán thật của {selected.label} để hoàn tất.
+        Thanh toán qua {selected.label} (môi trường thử nghiệm, chưa phải giao dịch thật). Bạn sẽ
+        được chuyển sang trang thanh toán thật của {selected.label} để hoàn tất.
       </p>
       <div className="grid grid-cols-2 gap-2">
         {METHODS.map((m) => (

@@ -66,7 +66,7 @@ export function ShareGroupBuyButton({ storeId, comboId }: { storeId: string; com
           <DialogHeader>
             <DialogTitle>Mời bạn bè mua chung</DialogTitle>
             <DialogDescription>
-              Chọn một người bạn để mời cùng mua sản phẩm này — mua càng nhiều người, càng nhiều
+              Chọn một người bạn để mời cùng mua sản phẩm này. Mua càng nhiều người, càng nhiều
               khả năng đạt mức giảm giá theo số lượng.
             </DialogDescription>
           </DialogHeader>

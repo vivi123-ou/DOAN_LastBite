@@ -67,7 +67,7 @@ export function OrderStatusActions({
         </Button>
       </div>
       {blockedByPayment && (
-        <p className="text-xs text-destructive">Khách chưa thanh toán — chưa thể đánh dấu hoàn tất.</p>
+        <p className="text-xs text-destructive">Khách chưa thanh toán, chưa thể đánh dấu hoàn tất.</p>
       )}
     </div>
   );

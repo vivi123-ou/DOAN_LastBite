@@ -265,7 +265,7 @@ export function ComboForm({ storeId, categories, initialCombo }: ComboFormProps)
     <form onSubmit={handleSubmit} className="space-y-6">
       {isExpiredCombo && (
         <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
-          Combo này đã hết hạn. Đặt giờ khoá bán và số lượng mới bên dưới rồi lưu lại để bán lại —
+          Combo này đã hết hạn. Đặt giờ khoá bán và số lượng mới bên dưới rồi lưu lại để bán lại,
           không cần tạo combo mới.
         </div>
       )}

@@ -79,11 +79,17 @@ export default async function AdminReportsPage({
                 <CardContent className="space-y-2 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-medium">
-                      {r.comboName} <span className="text-muted-foreground">— {r.storeName}</span>
+                      {r.comboName} <span className="text-muted-foreground">· {r.storeName}</span>
                     </p>
                     <Badge variant="outline">Đã xử lý</Badge>
                   </div>
                   {r.comment && <p className="text-sm text-muted-foreground">{r.comment}</p>}
+                  {r.storeResponse && (
+                    <p className="text-sm">
+                      <span className="font-medium text-primary">Phản hồi từ cửa hàng: </span>
+                      {r.storeResponse}
+                    </p>
+                  )}
                   {r.adminNote && (
                     <p className="text-sm text-primary">Ghi chú xử lý: {r.adminNote}</p>
                   )}

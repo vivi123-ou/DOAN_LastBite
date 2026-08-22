@@ -56,6 +56,20 @@ export default async function AccountReviewsPage() {
                   </p>
                 )}
                 {review.comment && <p className="text-sm text-muted-foreground">{review.comment}</p>}
+                {review.imageUrls.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {review.imageUrls.map((url) => (
+                      // eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL
+                      <img key={url} src={url} alt="" className="size-16 rounded-md border object-cover" />
+                    ))}
+                  </div>
+                )}
+                {review.storeResponse && (
+                  <p className="rounded-md border border-primary/30 bg-primary/5 p-2 text-sm">
+                    <span className="font-medium text-primary">Phản hồi từ cửa hàng: </span>
+                    {review.storeResponse}
+                  </p>
+                )}
               </CardContent>
             </Card>
           ))}
