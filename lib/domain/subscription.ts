@@ -8,7 +8,8 @@ export interface SubscriptionPlan {
   maxActiveCombos: number | null;
   // Independent of `name` — a plan's tier decides what features it
   // unlocks; `name` (and `durationDays`) can differ between a monthly and
-  // yearly variant of the *same* tier (0031's "Premium"/"Premium (năm)").
+  // yearly variant of the *same* tier (0031's "Basic"/"Basic (năm)" — only
+  // Basic has a yearly option, deliberately, see 0031's own comment).
   tier: SubscriptionTier;
   description: string | null;
   isDefault: boolean;
