@@ -3,6 +3,7 @@ import { listStoreSubscriptionsForAdmin } from "@/lib/repositories/subscription.
 import type { SubscriptionStatus } from "@/lib/domain/subscription";
 import { Badge } from "@/components/ui/badge";
 import { AdminFilterBar } from "@/components/admin/admin-filter-bar";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 
 const STATUS_LABEL: Record<string, string> = {
   pending_payment: "Chờ thanh toán",
@@ -26,11 +27,16 @@ function isPast(iso: string | null): boolean {
 export default async function AdminSubscriptionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
 }) {
-  const { q, status: rawStatus } = await searchParams;
+  const { q, status: rawStatus, page: rawPage } = await searchParams;
   const status = parseStatus(rawStatus);
-  const rows = await listStoreSubscriptionsForAdmin(createAdminClient(), { search: q, status });
+  const page = Number(rawPage) > 0 ? Number(rawPage) : 1;
+  const { items: rows, totalCount } = await listStoreSubscriptionsForAdmin(createAdminClient(), {
+    search: q,
+    status,
+    page,
+  });
 
   return (
     <div className="space-y-4 px-4 py-8">
@@ -38,7 +44,7 @@ export default async function AdminSubscriptionsPage({
         <h1 className="text-2xl font-bold">Trạng thái đăng ký gói</h1>
         <p className="text-sm text-muted-foreground">
           Gói mới nhất của từng cửa hàng đã từng mua gói. Cửa hàng chưa từng mua gói nào không hiện
-          ở đây — coi như đang dùng gói Free mặc định.
+          ở đây — coi như đang dùng gói Free mặc định. {totalCount} cửa hàng khớp bộ lọc.
         </p>
       </div>
 
@@ -111,6 +117,13 @@ export default async function AdminSubscriptionsPage({
           </p>
         )}
       </div>
+
+      <AdminPagination
+        page={page}
+        pageSize={20}
+        totalCount={totalCount}
+        searchParams={{ q, status: rawStatus }}
+      />
     </div>
   );
 }

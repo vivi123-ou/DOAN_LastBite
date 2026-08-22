@@ -6,6 +6,7 @@ import type {
   StorePayout,
   PayoutStatus,
 } from "@/lib/domain/commission";
+import { ADMIN_PAGE_SIZE, type PaginatedResult } from "@/lib/domain/pagination";
 
 // Config is a genuinely public, same-actor-safe read (any signed-in store
 // owner should be able to see the rate they're charged — same transparency
@@ -245,23 +246,31 @@ export async function markPayoutPaid(
 export interface AdminPayoutListFilter {
   search?: string; // store name
   status?: PayoutStatus;
+  storeId?: string;
+  page?: number; // 1-based
 }
 
-// `status` is applied in the initial query — unlike listStoreSubscriptionsForAdmin's
-// "latest row per store" case above, every store_payouts row is already its
-// own real, independent reconciliation event (no dedup happening here), so
-// filtering the raw rows by status doesn't change the meaning. `search`
-// (store name) still needs the join resolved first.
+// `status`/`storeId` are applied in the initial query — unlike
+// listStoreSubscriptionsForAdmin's "latest row per store" case above, every
+// store_payouts row is already its own real, independent reconciliation
+// event (no dedup happening here), so filtering the raw rows doesn't change
+// the meaning. `search` (store name) still needs the join resolved first,
+// so it (and pagination) apply afterward in JS — same reasoning already
+// used for listReportsForAdmin/listStoreSubscriptionsForAdmin: this table
+// stays small (one row per reconciliation period per store), so fetching
+// every status/store-matching row before paginating is an acceptable
+// tradeoff.
 export async function listPayoutsForAdmin(
   admin: SupabaseClient<Database>,
   filter: AdminPayoutListFilter = {}
-): Promise<StorePayout[]> {
+): Promise<PaginatedResult<StorePayout>> {
   let query = admin.from("store_payouts").select("*").order("created_at", { ascending: false });
   if (filter.status) query = query.eq("status", filter.status);
+  if (filter.storeId) query = query.eq("store_id", filter.storeId);
 
   const { data, error } = await query;
   if (error) throw error;
-  if (data.length === 0) return [];
+  if (data.length === 0) return { items: [], totalCount: 0 };
 
   const storeIds = [...new Set(data.map((r) => r.store_id))];
   const { data: stores, error: storesError } = await admin
@@ -278,7 +287,10 @@ export async function listPayoutsForAdmin(
     results = results.filter((r) => r.storeName.toLowerCase().includes(needle));
   }
 
-  return results;
+  const totalCount = results.length;
+  const page = filter.page ?? 1;
+  const start = (page - 1) * ADMIN_PAGE_SIZE;
+  return { items: results.slice(start, start + ADMIN_PAGE_SIZE), totalCount };
 }
 
 // Store's own payout/reconciliation history — regular client,

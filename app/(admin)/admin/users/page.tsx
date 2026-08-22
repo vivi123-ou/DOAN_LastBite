@@ -3,6 +3,7 @@ import { listUsersForAdmin } from "@/lib/repositories/admin.repository";
 import type { UserRole } from "@/lib/domain/profile";
 import { Badge } from "@/components/ui/badge";
 import { AdminFilterBar } from "@/components/admin/admin-filter-bar";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 
 const ROLE_LABEL: Record<string, string> = {
   customer: "Khách hàng",
@@ -16,28 +17,30 @@ function parseRole(raw: string | undefined): UserRole | undefined {
   return VALID_ROLES.find((r) => r === raw);
 }
 
-// Email isn't shown here — profiles has no email column (Supabase Auth
-// keeps that in its own auth.users, not exposed to this table), and
-// resolving it would need the separate Auth admin API rather than a plain
-// query. Name/role/points/order count already cover what "xem danh sách
-// người dùng" actually needs; flagged as a possible follow-up, not built
-// this round to keep scope to what a plain repository query can answer.
+// Email is resolved per-row via the Supabase Auth admin API in
+// listUsersForAdmin() (profiles has no email column of its own — see that
+// function's comment) — shown here now that the list is genuinely paginated
+// (only ever resolving email for the current page's ~20 rows, not the
+// whole user base).
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; role?: string }>;
+  searchParams: Promise<{ q?: string; role?: string; page?: string }>;
 }) {
-  const { q, role: rawRole } = await searchParams;
+  const { q, role: rawRole, page: rawPage } = await searchParams;
   const role = parseRole(rawRole);
-  const users = await listUsersForAdmin(createAdminClient(), { search: q, role });
+  const page = Number(rawPage) > 0 ? Number(rawPage) : 1;
+  const { items: users, totalCount } = await listUsersForAdmin(createAdminClient(), {
+    search: q,
+    role,
+    page,
+  });
 
   return (
     <div className="space-y-4 px-4 py-8">
       <div>
         <h1 className="text-2xl font-bold">Người dùng</h1>
-        <p className="text-sm text-muted-foreground">
-          200 tài khoản gần nhất khớp bộ lọc. {users.length} tài khoản.
-        </p>
+        <p className="text-sm text-muted-foreground">{totalCount} tài khoản khớp bộ lọc.</p>
       </div>
 
       <AdminFilterBar
@@ -63,6 +66,7 @@ export default async function AdminUsersPage({
           <thead className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
             <tr>
               <th className="px-3 py-2">Tên</th>
+              <th className="px-3 py-2">Email</th>
               <th className="px-3 py-2">Vai trò</th>
               <th className="px-3 py-2">Số đơn đã đặt</th>
               <th className="px-3 py-2">Điểm Net Zero</th>
@@ -73,6 +77,7 @@ export default async function AdminUsersPage({
             {users.map((u) => (
               <tr key={u.id}>
                 <td className="px-3 py-2 font-medium">{u.fullName ?? "—"}</td>
+                <td className="px-3 py-2 text-muted-foreground">{u.email ?? "—"}</td>
                 <td className="px-3 py-2">
                   <Badge variant={u.role === "admin" ? "default" : "outline"}>
                     {ROLE_LABEL[u.role] ?? u.role}
@@ -93,6 +98,13 @@ export default async function AdminUsersPage({
           </p>
         )}
       </div>
+
+      <AdminPagination
+        page={page}
+        pageSize={20}
+        totalCount={totalCount}
+        searchParams={{ q, role: rawRole }}
+      />
     </div>
   );
 }

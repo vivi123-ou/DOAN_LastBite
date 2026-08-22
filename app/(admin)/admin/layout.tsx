@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById } from "@/lib/repositories/profile.repository";
+import { getSidebarCounts } from "@/lib/repositories/admin.repository";
 import { AdminSidebar } from "@/app/(admin)/admin/_components/admin-sidebar";
 
 // The actual access gate for the whole /admin area — proxy.ts only requires
@@ -19,10 +21,18 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const profile = await getById(supabase, userId);
   if (!profile || profile.role !== "admin") redirect("/");
 
+  // Best-effort — a badge-count hiccup shouldn't take down the whole admin
+  // area, same "missing table degrades gracefully" posture used elsewhere
+  // (e.g. getOverviewStats()'s commission_config .catch()).
+  const counts = await getSidebarCounts(createAdminClient()).catch(() => ({
+    pendingStores: 0,
+    openReports: 0,
+  }));
+
   return (
     <div className="mx-auto flex max-w-6xl flex-col sm:flex-row">
       <aside className="border-b px-3 py-3 sm:sticky sm:top-16 sm:h-[calc(100vh-4rem)] sm:w-56 sm:shrink-0 sm:border-b-0 sm:border-r sm:py-6">
-        <AdminSidebar />
+        <AdminSidebar counts={counts} />
       </aside>
       <div className="min-w-0 flex-1">{children}</div>
     </div>

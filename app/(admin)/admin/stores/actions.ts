@@ -5,7 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById } from "@/lib/repositories/profile.repository";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { updateStoreVerification, updateStoreActive } from "@/lib/repositories/admin.repository";
+import {
+  updateStoreVerification,
+  updateStoreActive,
+  bulkSetStoreVerification,
+} from "@/lib/repositories/admin.repository";
 import type { Database } from "@/types/database.types";
 
 type VerificationStatus = Database["public"]["Tables"]["stores"]["Row"]["verification_status"];
@@ -31,5 +35,11 @@ export async function setStoreVerificationAction(storeId: string, status: Verifi
 export async function setStoreActiveAction(storeId: string, isActive: boolean) {
   await requireAdmin();
   await updateStoreActive(createAdminClient(), storeId, isActive);
+  revalidatePath("/admin/stores");
+}
+
+export async function bulkSetStoreVerificationAction(storeIds: string[], status: VerificationStatus) {
+  await requireAdmin();
+  await bulkSetStoreVerification(createAdminClient(), storeIds, status);
   revalidatePath("/admin/stores");
 }
