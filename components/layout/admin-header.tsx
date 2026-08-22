@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Shield } from "lucide-react";
+import { Shield } from "lucide-react";
 import { UserMenu } from "@/components/layout/user-menu";
 
 interface AdminHeaderProps {
@@ -34,14 +34,10 @@ export function AdminHeader({ userId, fullName, avatarUrl, email }: AdminHeaderP
 
         <div className="flex-1" />
 
-        <Link
-          href="/"
-          className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Về trang chính
-        </Link>
-
+        {/* No "Về trang chính" link here — AdminSidebar already has one
+            ("Về trang người dùng", top of the left nav), and having the
+            same exit in two places at once just reads as clutter/a bug.
+            One exit point, in the sidebar, is enough. */}
         {userId && <UserMenu fullName={fullName} avatarUrl={avatarUrl} email={email} />}
       </div>
     </header>
