@@ -438,6 +438,10 @@ export interface Database {
           price: number;
           duration_days: number;
           max_active_combos: number | null;
+          // What features this plan unlocks — independent of `name`/billing
+          // period once monthly and yearly variants of the same tier both
+          // exist (0031). Feature gates check this, never `name`.
+          tier: "free" | "basic" | "premium";
           description: string | null;
           is_default: boolean;
           is_active: boolean;

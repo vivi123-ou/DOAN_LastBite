@@ -9,10 +9,21 @@ import {
   getEffectiveSubscription,
   checkAndNotifyExpiringSoon,
 } from "@/lib/repositories/subscription.repository";
+import type { SubscriptionPlan, SubscriptionTier } from "@/lib/domain/subscription";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Check } from "lucide-react";
 import { PlanPaymentButton } from "@/app/(store)/dashboard/subscription/_components/plan-payment-button";
+
+const TIER_LABEL: Record<SubscriptionTier, string> = {
+  free: "Free",
+  basic: "Basic",
+  premium: "Premium",
+};
+
+// Ordered so the layout below reads Free → Basic → Premium regardless of
+// exact insertion order in the DB.
+const TIER_ORDER: SubscriptionTier[] = ["free", "basic", "premium"];
 
 export default async function StoreSubscriptionPage() {
   const supabase = await createClient();
@@ -35,12 +46,28 @@ export default async function StoreSubscriptionPage() {
     getEffectiveSubscription(admin, store.id),
   ]);
 
+  // Grouped by tier (not a flat list) — since 0031 added a yearly variant
+  // alongside the existing monthly one for Basic/Premium, a flat 5-card
+  // grid would read as 5 unrelated options instead of "3 tiers, 2 billing
+  // choices each". Shortest duration first within a tier (monthly before
+  // yearly) so the "Gia hạn"/"Chọn gói này" button order matches intuition.
+  const plansByTier = new Map<SubscriptionTier, SubscriptionPlan[]>();
+  for (const plan of plans) {
+    const list = plansByTier.get(plan.tier) ?? [];
+    list.push(plan);
+    plansByTier.set(plan.tier, list);
+  }
+  for (const list of plansByTier.values()) {
+    list.sort((a, b) => a.durationDays - b.durationDays);
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
       <div>
         <h1 className="text-2xl font-bold">Gói dịch vụ</h1>
         <p className="text-sm text-muted-foreground">
-          Gói hiện tại quyết định số combo bạn được đăng bán cùng lúc.
+          Gói hiện tại quyết định số combo bạn được đăng bán cùng lúc và các tính năng báo cáo/gợi ý
+          bạn được dùng.
         </p>
       </div>
 
@@ -84,45 +111,52 @@ export default async function StoreSubscriptionPage() {
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Các gói hiện có</h2>
         <div className="grid gap-4 sm:grid-cols-3">
-          {plans.map((plan) => {
-            const isCurrent = plan.name === effective.planName && !effective.locked;
-            return (
-              <Card key={plan.id} className={isCurrent ? "border-primary" : undefined}>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-base">
-                    {plan.name}
-                    {isCurrent && (
-                      <Badge>
-                        <Check className="size-3" /> Đang dùng
-                      </Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-2xl font-bold text-primary">
-                    {plan.price.toLocaleString("vi-VN")}đ
-                    <span className="text-sm font-normal text-muted-foreground">
-                      /{plan.durationDays} ngày
-                    </span>
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {plan.maxActiveCombos === null
-                      ? "Không giới hạn combo"
-                      : `Tối đa ${plan.maxActiveCombos} combo`}
-                  </p>
-                  {plan.description && (
-                    <p className="text-xs text-muted-foreground">{plan.description}</p>
-                  )}
-                  {plan.price > 0 && (
-                    <PlanPaymentButton
-                      planId={plan.id}
-                      label={isCurrent ? "Gia hạn" : "Chọn gói này"}
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+          {TIER_ORDER.map((tier) => (
+            <div key={tier} className="space-y-3">
+              <h3 className="text-center text-sm font-semibold text-muted-foreground">
+                {TIER_LABEL[tier]}
+              </h3>
+              {(plansByTier.get(tier) ?? []).map((plan) => {
+                const isCurrent = plan.name === effective.planName && !effective.locked;
+                return (
+                  <Card key={plan.id} className={isCurrent ? "border-primary" : undefined}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between text-base">
+                        {plan.durationDays >= 365 ? "Theo năm" : "Theo tháng"}
+                        {isCurrent && (
+                          <Badge>
+                            <Check className="size-3" /> Đang dùng
+                          </Badge>
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <p className="text-2xl font-bold text-primary">
+                        {plan.price.toLocaleString("vi-VN")}đ
+                        <span className="text-sm font-normal text-muted-foreground">
+                          /{plan.durationDays >= 365 ? "năm" : `${plan.durationDays} ngày`}
+                        </span>
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {plan.maxActiveCombos === null
+                          ? "Không giới hạn combo"
+                          : `Tối đa ${plan.maxActiveCombos} combo`}
+                      </p>
+                      {plan.description && (
+                        <p className="text-xs text-muted-foreground">{plan.description}</p>
+                      )}
+                      {plan.price > 0 && (
+                        <PlanPaymentButton
+                          planId={plan.id}
+                          label={isCurrent ? "Gia hạn" : "Chọn gói này"}
+                        />
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
     </div>

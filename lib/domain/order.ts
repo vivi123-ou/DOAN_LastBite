@@ -93,3 +93,13 @@ export interface StoreMonthlyStats {
   completedOrderCount: number;
   revenue: number;
 }
+
+// Basic-tier+ store perk (subscription_plans.tier, 0031) — which hour of
+// the day this store's orders cluster around, computed from real order
+// timestamps. `hourLabel` is pre-formatted ("17h - 18h") since it's only
+// ever rendered as-is, no further date math needed by the caller.
+export interface PeakSellingHour {
+  hour: number;
+  hourLabel: string;
+  orderCount: number;
+}

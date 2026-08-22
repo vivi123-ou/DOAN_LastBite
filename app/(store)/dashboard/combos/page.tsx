@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
 import { listByStore } from "@/lib/repositories/combo.repository";
 import { listCategories } from "@/lib/repositories/category.repository";
+import { getEffectiveSubscription } from "@/lib/repositories/subscription.repository";
+import { getAverageDailySales } from "@/lib/repositories/order.repository";
 import { suggestBestBefore } from "@/lib/pricing/lock-duration/lock-duration.policy";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,6 +81,23 @@ export default async function StoreCombosPage({
     }
   }
 
+  // "Gợi ý nhập hàng thông minh" — Premium-only perk (0031). Only computed
+  // for combos that are actually expired (the only ones the bulk relist
+  // dialog will ever show), and only when the store's tier unlocks it, so a
+  // Free/Basic store's page load never pays for a query it can't see the
+  // result of.
+  const effective = await getEffectiveSubscription(createAdminClient(), store.id);
+  const suggestedQuantityByComboId: Record<string, number> = {};
+  if (effective.tier === "premium") {
+    const expiredCombos = combos.filter((c) => displayStatus(c) === "locked");
+    await Promise.all(
+      expiredCombos.map(async (combo) => {
+        const suggestion = await getAverageDailySales(supabase, store.id, combo.id);
+        if (suggestion !== null) suggestedQuantityByComboId[combo.id] = suggestion;
+      })
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10">
       <div className="flex items-center justify-between">
@@ -137,7 +157,11 @@ export default async function StoreCombosPage({
           Không tìm thấy combo nào khớp bộ lọc.
         </p>
       ) : (
-        <CombosList combos={combos} suggestedBestBeforeByComboId={suggestedBestBeforeByComboId} />
+        <CombosList
+          combos={combos}
+          suggestedBestBeforeByComboId={suggestedBestBeforeByComboId}
+          suggestedQuantityByComboId={suggestedQuantityByComboId}
+        />
       )}
     </div>
   );
