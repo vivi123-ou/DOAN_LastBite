@@ -194,7 +194,7 @@ language sql stable as $$
         and ab.starts_at <= now()
         and ab.ends_at > now()
         and apt.key in ('hot_deal', 'search_top', 'category_top')
-    )
+    ) as is_sponsored
   from combos c
   join stores s on s.id = c.store_id
   left join lateral (
@@ -261,7 +261,7 @@ language sql stable as $$
         and ab.starts_at <= now()
         and ab.ends_at > now()
         and apt.key in ('hot_deal', 'search_top', 'category_top')
-    )
+    ) as is_sponsored
   from combos c
   join stores s on s.id = c.store_id
   left join lateral (
