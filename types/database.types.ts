@@ -472,6 +472,20 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["store_subscriptions"]["Row"]>;
         Relationships: [];
       };
+      store_bank_accounts: {
+        Row: {
+          store_id: string;
+          bank_name: string | null;
+          account_number: string | null;
+          account_holder: string | null;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["store_bank_accounts"]["Row"]> & {
+          store_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["store_bank_accounts"]["Row"]>;
+        Relationships: [];
+      };
       commission_config: {
         Row: {
           id: string;

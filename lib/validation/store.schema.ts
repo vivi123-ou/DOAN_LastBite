@@ -37,3 +37,18 @@ export const updateStoreSchema = z.object({
 });
 
 export type UpdateStoreFormValues = z.infer<typeof updateStoreSchema>;
+
+// Deliberately loose — a bank name/account number/account holder don't
+// have one universal format across Vietnamese banks worth validating
+// against, and this is a self-reported field the admin cross-checks by eye
+// before actually transferring money anyway (same posture as e.g.
+// combo_items' free-text item names). Every field optional: a store can
+// fill in just what they have, or leave it blank until they're actually
+// ready to receive a payout.
+export const bankAccountSchema = z.object({
+  bankName: z.string().trim().max(120).optional().or(z.literal("")),
+  accountNumber: z.string().trim().max(50).optional().or(z.literal("")),
+  accountHolder: z.string().trim().max(120).optional().or(z.literal("")),
+});
+
+export type BankAccountFormValues = z.infer<typeof bankAccountSchema>;
