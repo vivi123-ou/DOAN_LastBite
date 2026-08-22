@@ -15,22 +15,34 @@ import {
   Wallet,
 } from "lucide-react";
 
+// `countKey` maps a nav item to the matching field on AdminSidebarCounts —
+// only "Cửa hàng" (pending approvals) and "Báo cáo" (open reports) get a
+// badge, the two counts an admin actually needs a quick heads-up on
+// without opening the page first.
 const ITEMS = [
-  { href: "/admin", label: "Tổng quan", icon: LayoutDashboard },
-  { href: "/admin/stores", label: "Cửa hàng", icon: Store },
-  { href: "/admin/combos", label: "Combo", icon: Package },
-  { href: "/admin/plans", label: "Gói dịch vụ", icon: CreditCard },
-  { href: "/admin/subscriptions", label: "Đăng ký gói", icon: ClipboardList },
-  { href: "/admin/commission", label: "Hoa hồng", icon: Percent },
-  { href: "/admin/payouts", label: "Đối soát", icon: Wallet },
-  { href: "/admin/reports", label: "Báo cáo", icon: Flag },
-  { href: "/admin/users", label: "Người dùng", icon: Users },
+  { href: "/admin", label: "Tổng quan", icon: LayoutDashboard, countKey: null },
+  { href: "/admin/stores", label: "Cửa hàng", icon: Store, countKey: "pendingStores" as const },
+  { href: "/admin/combos", label: "Combo", icon: Package, countKey: null },
+  { href: "/admin/plans", label: "Gói dịch vụ", icon: CreditCard, countKey: null },
+  { href: "/admin/subscriptions", label: "Đăng ký gói", icon: ClipboardList, countKey: null },
+  { href: "/admin/commission", label: "Hoa hồng", icon: Percent, countKey: null },
+  { href: "/admin/payouts", label: "Đối soát", icon: Wallet, countKey: null },
+  { href: "/admin/reports", label: "Báo cáo", icon: Flag, countKey: "openReports" as const },
+  { href: "/admin/users", label: "Người dùng", icon: Users, countKey: null },
 ];
+
+interface AdminSidebarProps {
+  // Fetched once in app/(admin)/admin/layout.tsx (a Server Component) and
+  // passed down — this component is itself a Client Component
+  // (usePathname() for the active-route highlight), so it can't fetch its
+  // own data.
+  counts: { pendingStores: number; openReports: number };
+}
 
 // Same persistent-sidebar shape as StoreSidebar (app/(store)/_components/store-sidebar.tsx)
 // — one more "you're in a different mode now" area, consistent visual
 // language with the store dashboard's own Studio-style split.
-export function AdminSidebar() {
+export function AdminSidebar({ counts }: AdminSidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -42,8 +54,9 @@ export function AdminSidebar() {
         <ArrowLeft className="size-4" />
         Về trang người dùng
       </Link>
-      {ITEMS.map(({ href, label, icon: Icon }) => {
+      {ITEMS.map(({ href, label, icon: Icon, countKey }) => {
         const isActive = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+        const count = countKey ? counts[countKey] : 0;
         return (
           <Link
             key={href}
@@ -56,6 +69,15 @@ export function AdminSidebar() {
           >
             <Icon className="size-4" />
             {label}
+            {count > 0 && (
+              <span
+                className={`ml-auto flex size-5 items-center justify-center rounded-full text-xs font-semibold ${
+                  isActive ? "bg-primary-foreground/20" : "bg-destructive text-destructive-foreground"
+                }`}
+              >
+                {count > 99 ? "99+" : count}
+              </span>
+            )}
           </Link>
         );
       })}

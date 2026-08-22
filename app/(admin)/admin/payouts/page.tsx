@@ -5,6 +5,7 @@ import type { PayoutStatus } from "@/lib/domain/commission";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AdminFilterBar } from "@/components/admin/admin-filter-bar";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 import { GeneratePayoutForm } from "@/app/(admin)/admin/payouts/_components/generate-payout-form";
 import { MarkPaidButton } from "@/app/(admin)/admin/payouts/_components/mark-paid-button";
 
@@ -17,13 +18,14 @@ function parseStatus(raw: string | undefined): PayoutStatus | undefined {
 export default async function AdminPayoutsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
 }) {
-  const { q, status: rawStatus } = await searchParams;
+  const { q, status: rawStatus, page: rawPage } = await searchParams;
   const status = parseStatus(rawStatus);
+  const page = Number(rawPage) > 0 ? Number(rawPage) : 1;
   const admin = createAdminClient();
-  const [payouts, stores] = await Promise.all([
-    listPayoutsForAdmin(admin, { search: q, status }),
+  const [{ items: payouts, totalCount }, stores] = await Promise.all([
+    listPayoutsForAdmin(admin, { search: q, status, page }),
     listVerified(admin, 200),
   ]);
 
@@ -96,6 +98,13 @@ export default async function AdminPayoutsPage({
           </p>
         )}
       </div>
+
+      <AdminPagination
+        page={page}
+        pageSize={20}
+        totalCount={totalCount}
+        searchParams={{ q, status: rawStatus }}
+      />
     </div>
   );
 }

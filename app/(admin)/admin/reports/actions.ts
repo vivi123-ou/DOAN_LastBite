@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById } from "@/lib/repositories/profile.repository";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveReport } from "@/lib/repositories/admin.repository";
+import { resolveReport, bulkResolveReports } from "@/lib/repositories/admin.repository";
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -18,6 +18,13 @@ async function requireAdmin() {
 export async function resolveReportAction(reportId: string, adminNote?: string) {
   await requireAdmin();
   await resolveReport(createAdminClient(), reportId, adminNote);
+  revalidatePath("/admin/reports");
+  revalidatePath("/admin");
+}
+
+export async function bulkResolveReportsAction(reportIds: string[]) {
+  await requireAdmin();
+  await bulkResolveReports(createAdminClient(), reportIds);
   revalidatePath("/admin/reports");
   revalidatePath("/admin");
 }

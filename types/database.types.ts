@@ -608,6 +608,65 @@ export interface Database {
           unread_count: number;
         }[];
       };
+      admin_search_stores: {
+        Args: {
+          search_text?: string | null;
+          status_filter?: string | null;
+          limit_n?: number;
+          offset_n?: number;
+        };
+        Returns: {
+          id: string;
+          name: string;
+          address_line: string;
+          verification_status: string;
+          is_active: boolean;
+          created_at: string;
+          owner_id: string;
+          owner_name: string | null;
+          total_count: number;
+        }[];
+      };
+      admin_search_combos: {
+        Args: {
+          search_text?: string | null;
+          status_filter?: string | null;
+          store_id_filter?: string | null;
+          limit_n?: number;
+          offset_n?: number;
+        };
+        Returns: {
+          id: string;
+          name: string;
+          original_price: number;
+          current_price: number;
+          initial_stock: number;
+          remaining_stock: number;
+          created_at: string;
+          best_before: string;
+          status: string;
+          store_id: string;
+          store_name: string;
+          total_count: number;
+        }[];
+      };
+      admin_search_users: {
+        Args: {
+          search_text?: string | null;
+          role_filter?: string | null;
+          limit_n?: number;
+          offset_n?: number;
+        };
+        Returns: {
+          id: string;
+          full_name: string | null;
+          role: string;
+          net_zero_points: number;
+          created_at: string;
+          order_count: number;
+          total_count: number;
+        }[];
+      };
     };
     Enums: Record<string, never>;
   };

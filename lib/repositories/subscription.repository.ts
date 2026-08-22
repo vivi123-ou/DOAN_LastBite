@@ -9,6 +9,7 @@ import type {
 } from "@/lib/domain/subscription";
 import { getOwnerIdById } from "@/lib/repositories/store.repository";
 import { create as createNotification } from "@/lib/repositories/notification.repository";
+import { ADMIN_PAGE_SIZE, type PaginatedResult } from "@/lib/domain/pagination";
 
 // Every function below except listPlans() uses the service-role admin
 // client — store_subscriptions handles money (amount_paid, payment_method,
@@ -352,6 +353,7 @@ export async function checkAndNotifyExpiringSoon(
 export interface AdminSubscriptionListFilter {
   search?: string; // store name
   status?: SubscriptionStatus;
+  page?: number; // 1-based
 }
 
 // Admin's /admin/subscriptions list — latest row per store, JS-grouped
@@ -367,13 +369,13 @@ export interface AdminSubscriptionListFilter {
 export async function listStoreSubscriptionsForAdmin(
   admin: SupabaseClient<Database>,
   filter: AdminSubscriptionListFilter = {}
-): Promise<AdminStoreSubscriptionSummary[]> {
+): Promise<PaginatedResult<AdminStoreSubscriptionSummary>> {
   const { data: rows, error } = await admin
     .from("store_subscriptions")
     .select("store_id, plan_id, status, started_at, expires_at, amount_paid, created_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
-  if (rows.length === 0) return [];
+  if (rows.length === 0) return { items: [], totalCount: 0 };
 
   const latestByStore = new Map<string, (typeof rows)[number]>();
   for (const r of rows) {
@@ -409,5 +411,8 @@ export async function listStoreSubscriptionsForAdmin(
     results = results.filter((r) => r.storeName.toLowerCase().includes(needle));
   }
 
-  return results;
+  const totalCount = results.length;
+  const page = filter.page ?? 1;
+  const start = (page - 1) * ADMIN_PAGE_SIZE;
+  return { items: results.slice(start, start + ADMIN_PAGE_SIZE), totalCount };
 }

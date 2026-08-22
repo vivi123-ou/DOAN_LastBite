@@ -3,7 +3,8 @@ import { listReportsForAdmin } from "@/lib/repositories/admin.repository";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AdminFilterBar } from "@/components/admin/admin-filter-bar";
-import { ResolveReportButton } from "@/app/(admin)/admin/reports/_components/resolve-report-button";
+import { AdminPagination } from "@/components/admin/admin-pagination";
+import { OpenReportsList } from "@/app/(admin)/admin/reports/_components/open-reports-list";
 
 // Reads combo_reviews where kind = 'report' — filed by customers from the
 // order detail page (review-form.tsx), previously only ever visible to the
@@ -12,11 +13,16 @@ import { ResolveReportButton } from "@/app/(admin)/admin/reports/_components/res
 export default async function AdminReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; resolved?: string }>;
+  searchParams: Promise<{ q?: string; resolved?: string; page?: string }>;
 }) {
-  const { q, resolved: rawResolved } = await searchParams;
+  const { q, resolved: rawResolved, page: rawPage } = await searchParams;
   const resolved = rawResolved === "open" || rawResolved === "resolved" ? rawResolved : undefined;
-  const reports = await listReportsForAdmin(createAdminClient(), { search: q, resolved });
+  const page = Number(rawPage) > 0 ? Number(rawPage) : 1;
+  const { items: reports, totalCount } = await listReportsForAdmin(createAdminClient(), {
+    search: q,
+    resolved,
+    page,
+  });
   const open = reports.filter((r) => !r.resolvedAt);
   const resolvedList = reports.filter((r) => r.resolvedAt);
 
@@ -25,7 +31,8 @@ export default async function AdminReportsPage({
       <div>
         <h1 className="text-2xl font-bold">Báo cáo & khiếu nại</h1>
         <p className="text-sm text-muted-foreground">
-          Khách hàng báo cáo vấn đề với combo từ trang chi tiết đơn hàng đã hoàn tất.
+          Khách hàng báo cáo vấn đề với combo từ trang chi tiết đơn hàng đã hoàn tất. {totalCount} báo
+          cáo khớp bộ lọc.
         </p>
       </div>
 
@@ -48,33 +55,15 @@ export default async function AdminReportsPage({
 
       {resolved !== "resolved" && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground">Chưa xử lý ({open.length})</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground">
+            Chưa xử lý (trang này: {open.length})
+          </h2>
           {open.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               {q ? "Không tìm thấy báo cáo nào khớp." : "Không có báo cáo nào."}
             </p>
           ) : (
-            <div className="space-y-3">
-              {open.map((r) => (
-                <Card key={r.id}>
-                  <CardContent className="space-y-2 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-medium">
-                        {r.comboName} <span className="text-muted-foreground">— {r.storeName}</span>
-                      </p>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(r.createdAt).toLocaleString("vi-VN")}
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Khách hàng: {r.customerName ?? "—"}
-                    </p>
-                    {r.comment && <p className="rounded-md border bg-muted/40 p-2 text-sm">{r.comment}</p>}
-                    <ResolveReportButton reportId={r.id} />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <OpenReportsList reports={open} />
           )}
         </section>
       )}
@@ -82,7 +71,7 @@ export default async function AdminReportsPage({
       {resolved !== "open" && resolvedList.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-muted-foreground">
-            Đã xử lý ({resolvedList.length})
+            Đã xử lý (trang này: {resolvedList.length})
           </h2>
           <div className="space-y-3">
             {resolvedList.map((r) => (
@@ -104,6 +93,13 @@ export default async function AdminReportsPage({
           </div>
         </section>
       )}
+
+      <AdminPagination
+        page={page}
+        pageSize={20}
+        totalCount={totalCount}
+        searchParams={{ q, resolved: rawResolved }}
+      />
     </div>
   );
 }

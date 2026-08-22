@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listCombosForAdmin } from "@/lib/repositories/admin.repository";
 import type { ComboStatus } from "@/lib/domain/combo";
 import { Badge } from "@/components/ui/badge";
 import { AdminFilterBar } from "@/components/admin/admin-filter-bar";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Nháp",
@@ -36,19 +38,23 @@ function isExpired(bestBefore: string): boolean {
 export default async function AdminCombosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
 }) {
-  const { q, status: rawStatus } = await searchParams;
+  const { q, status: rawStatus, page: rawPage } = await searchParams;
   const status = parseStatus(rawStatus);
-  const combos = await listCombosForAdmin(createAdminClient(), { search: q, status });
+  const page = Number(rawPage) > 0 ? Number(rawPage) : 1;
+  const { items: combos, totalCount } = await listCombosForAdmin(createAdminClient(), {
+    search: q,
+    status,
+    page,
+  });
 
   return (
     <div className="space-y-4 px-4 py-8">
       <div>
         <h1 className="text-2xl font-bold">Combo toàn hệ thống</h1>
         <p className="text-sm text-muted-foreground">
-          200 combo được đăng gần nhất khớp bộ lọc, giá hiển thị là giá động tính tại thời điểm tải
-          trang này.
+          {totalCount} combo khớp bộ lọc — giá hiển thị là giá động tính tại thời điểm tải trang này.
         </p>
       </div>
 
@@ -90,7 +96,11 @@ export default async function AdminCombosPage({
               return (
                 <tr key={c.id}>
                   <td className="px-3 py-2 font-medium">{c.name}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{c.storeName}</td>
+                  <td className="px-3 py-2 text-muted-foreground">
+                    <Link href={`/admin/stores/${c.storeId}`} className="hover:underline hover:text-foreground">
+                      {c.storeName}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2">
                     <span className="font-medium text-primary">
                       {c.currentPrice.toLocaleString("vi-VN")}đ
@@ -127,6 +137,13 @@ export default async function AdminCombosPage({
           </p>
         )}
       </div>
+
+      <AdminPagination
+        page={page}
+        pageSize={20}
+        totalCount={totalCount}
+        searchParams={{ q, status: rawStatus }}
+      />
     </div>
   );
 }
