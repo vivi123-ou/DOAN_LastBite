@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/types/database.types";
-import type { Order, OrderStatus, OrderStatusEvent, StoreMonthlyStats } from "@/lib/domain/order";
+import type {
+  Order,
+  OrderStatus,
+  OrderStatusEvent,
+  StoreMonthlyStats,
+  PeakSellingHour,
+} from "@/lib/domain/order";
 import type { BuiltOrder } from "@/lib/factories/order.builder";
 import { adjustBalance, recordOrderImpact } from "@/lib/repositories/net-zero.repository";
 import { create as createNotification } from "@/lib/repositories/notification.repository";
@@ -404,6 +410,88 @@ export async function getStoreMonthlyStats(
     completedOrderCount: completed.length,
     revenue: completed.reduce((sum, o) => sum + o.total_amount, 0),
   };
+}
+
+// Basic-tier+ store perk — which hour of the day this store actually sells
+// the most, from real order timestamps over the last 30 days. Plain JS
+// bucketing over a bounded window (one store's monthly order volume stays
+// small at this app's scale), same "small aggregation over a narrow query"
+// preference already established elsewhere (getTopPurchasedCategoryIds()
+// below, getStoreMonthlyStats() above) rather than a dedicated SQL
+// aggregate. Returns null when there's no order history yet to compute
+// from — never a fabricated "peak hour" out of zero data.
+export async function getPeakSellingHour(
+  client: SupabaseClient<Database>,
+  storeId: string
+): Promise<PeakSellingHour | null> {
+  const since = new Date(Date.now() - 30 * 86_400_000);
+  const { data, error } = await client
+    .from("orders")
+    .select("created_at")
+    .eq("store_id", storeId)
+    .gte("created_at", since.toISOString());
+  if (error) throw error;
+  if (data.length === 0) return null;
+
+  const countByHour = new Map<number, number>();
+  for (const row of data) {
+    const hour = new Date(row.created_at).getHours();
+    countByHour.set(hour, (countByHour.get(hour) ?? 0) + 1);
+  }
+
+  let bestHour = 0;
+  let bestCount = 0;
+  for (const [hour, count] of countByHour) {
+    if (count > bestCount) {
+      bestHour = hour;
+      bestCount = count;
+    }
+  }
+
+  return {
+    hour: bestHour,
+    hourLabel: `${bestHour}h - ${(bestHour + 1) % 24}h`,
+    orderCount: bestCount,
+  };
+}
+
+// Premium-tier store perk — "gợi ý nhập hàng thông minh" on the bulk relist
+// dialog: average daily units actually sold for this exact combo over the
+// last 7 days, from real order_items (not a guess, not last time's
+// initial_stock). Two-step, not an embedded join, same reasoning as
+// elsewhere in this file: fetch this store's recent order ids, then sum
+// order_items.quantity for this combo within those. Returns null when there
+// isn't enough sales history yet — the bulk relist dialog falls back to
+// its existing "last known stock" default in that case, never a fabricated
+// suggestion out of zero data.
+export async function getAverageDailySales(
+  client: SupabaseClient<Database>,
+  storeId: string,
+  comboId: string,
+  days = 7
+): Promise<number | null> {
+  const since = new Date(Date.now() - days * 86_400_000);
+  const { data: orders, error: ordersError } = await client
+    .from("orders")
+    .select("id")
+    .eq("store_id", storeId)
+    .gte("created_at", since.toISOString());
+  if (ordersError) throw ordersError;
+  if (orders.length === 0) return null;
+
+  const { data: items, error: itemsError } = await client
+    .from("order_items")
+    .select("quantity")
+    .eq("combo_id", comboId)
+    .in(
+      "order_id",
+      orders.map((o) => o.id)
+    );
+  if (itemsError) throw itemsError;
+  if (items.length === 0) return null;
+
+  const totalSold = items.reduce((sum, i) => sum + i.quantity, 0);
+  return Math.max(1, Math.round(totalSold / days));
 }
 
 // Feeds the homepage "Có thể bạn thích" section — categories the customer

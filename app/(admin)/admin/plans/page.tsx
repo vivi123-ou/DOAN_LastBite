@@ -27,6 +27,9 @@ export default async function AdminPlansPage() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium">{plan.name}</p>
+                  <Badge variant="outline" className="capitalize">
+                    {plan.tier}
+                  </Badge>
                   {plan.isDefault && <Badge variant="outline">Mặc định</Badge>}
                   {!plan.isActive && <Badge variant="secondary">Đã ẩn</Badge>}
                 </div>

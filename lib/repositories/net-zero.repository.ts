@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
-import type { NetZeroExpiry, NetZeroSummary } from "@/lib/domain/net-zero";
+import type { NetZeroExpiry, NetZeroSummary, StoreNetZeroImpact } from "@/lib/domain/net-zero";
 import { calculatePointsEarned } from "@/lib/pricing/net-zero/net-zero.policy";
 
 // Points expire this many days after being earned — see
@@ -25,6 +25,43 @@ export async function getSummary(
   return {
     pointsBalance: profile?.net_zero_points ?? 0,
     totalCo2SavedKg: (ledgerRows ?? []).reduce((sum, row) => sum + row.co2_saved_kg, 0),
+  };
+}
+
+// Premium-tier store perk — "how much has *this store* contributed to Net
+// Zero," not a customer's own balance. Two-step, not an embedded join
+// (same reasoning as everywhere else in this hand-typed schema): fetch this
+// store's paid order ids, then sum net_zero_ledger rows for those ids.
+// orders_select_store_owner RLS (0001) already scopes the first query to
+// the caller's own store with the regular client — no admin client needed.
+export async function getStoreImpact(
+  client: SupabaseClient<Database>,
+  storeId: string
+): Promise<StoreNetZeroImpact> {
+  const { data: orders, error: ordersError } = await client
+    .from("orders")
+    .select("id")
+    .eq("store_id", storeId)
+    .eq("payment_status", "success");
+  if (ordersError) throw ordersError;
+  if (orders.length === 0) return { totalCo2SavedKg: 0, totalFoodRescuedKg: 0, orderCount: 0 };
+
+  const { data: ledgerRows, error: ledgerError } = await client
+    .from("net_zero_ledger")
+    .select("co2_saved_kg, order_id")
+    .in(
+      "order_id",
+      orders.map((o) => o.id)
+    );
+  if (ledgerError) throw ledgerError;
+
+  const totalCo2SavedKg = ledgerRows.reduce((sum, r) => sum + r.co2_saved_kg, 0);
+  // Same 1kg-food≈2.5kg-CO2 conversion already used for the admin overview's
+  // "kg thực phẩm giải cứu" stat — computed for display, not stored twice.
+  return {
+    totalCo2SavedKg,
+    totalFoodRescuedKg: totalCo2SavedKg / 2.5,
+    orderCount: new Set(ledgerRows.map((r) => r.order_id)).size,
   };
 }
 

@@ -39,6 +39,11 @@ function displayStatus(combo: Combo): ComboStatus {
 interface CombosListProps {
   combos: Combo[];
   suggestedBestBeforeByComboId: Record<string, string>;
+  // Premium-tier "gợi ý nhập hàng" — average daily units sold over the last
+  // 7 days, per combo (order.repository.ts's getAverageDailySales()).
+  // Empty for non-Premium stores (page.tsx never computes it in that
+  // case) — the dialog just shows no hint for a combo missing an entry.
+  suggestedQuantityByComboId: Record<string, number>;
 }
 
 // Checkboxes only ever appear on expired ("locked") combos — an active/
@@ -47,7 +52,11 @@ interface CombosListProps {
 // rather than instantly reapplying old data — see that component's own
 // comment for why a relist's stock count specifically can't be silently
 // bulk-defaulted (food-safety/inventory-honesty reasoning, not just UX).
-export function CombosList({ combos, suggestedBestBeforeByComboId }: CombosListProps) {
+export function CombosList({
+  combos,
+  suggestedBestBeforeByComboId,
+  suggestedQuantityByComboId,
+}: CombosListProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -74,6 +83,7 @@ export function CombosList({ combos, suggestedBestBeforeByComboId }: CombosListP
       name: c.name,
       lastStock: c.initialStock,
       suggestedBestBefore: suggestedBestBeforeByComboId[c.id],
+      suggestedQuantity: suggestedQuantityByComboId[c.id] ?? null,
     }))
     .filter((r) => r.suggestedBestBefore);
 

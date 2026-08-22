@@ -29,6 +29,12 @@ export interface BulkRelistRow {
   // business rule combo.builder.ts enforces on a single relist
   // (never later than the category's own suggested Best Before).
   suggestedBestBefore: string;
+  // Premium-tier "gợi ý nhập hàng" (order.repository.ts's
+  // getAverageDailySales()) — average units actually sold per day over the
+  // last 7 days, shown as a hint only, never auto-filled into the input:
+  // the whole point of this dialog is that the store looks at and confirms
+  // a real number, not that the system picks one for them.
+  suggestedQuantity: number | null;
 }
 
 function pad(n: number): string {
@@ -115,7 +121,14 @@ export function BulkRelistDialog({ onClose, rows }: { onClose: () => void; rows:
         <div className="max-h-80 space-y-3 overflow-y-auto">
           {rows.map((row) => (
             <div key={row.comboId} className="flex items-center justify-between gap-3">
-              <span className="min-w-0 flex-1 truncate text-sm">{row.name}</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">{row.name}</p>
+                {row.suggestedQuantity !== null && (
+                  <p className="text-xs text-muted-foreground">
+                    Gợi ý: trung bình bán {row.suggestedQuantity} phần/ngày (7 ngày qua)
+                  </p>
+                )}
+              </div>
               <Input
                 type="number"
                 min={1}

@@ -26,6 +26,7 @@ type PlanRow = {
   price: number;
   duration_days: number;
   max_active_combos: number | null;
+  tier: "free" | "basic" | "premium";
   description: string | null;
   is_default: boolean;
   is_active: boolean;
@@ -38,16 +39,19 @@ function mapPlan(row: PlanRow): SubscriptionPlan {
     price: row.price,
     durationDays: row.duration_days,
     maxActiveCombos: row.max_active_combos,
+    tier: row.tier,
     description: row.description,
     isDefault: row.is_default,
     isActive: row.is_active,
   };
 }
 
+const PLAN_COLUMNS = "id, name, price, duration_days, max_active_combos, tier, description, is_default, is_active";
+
 export async function listPlans(client: SupabaseClient<Database>): Promise<SubscriptionPlan[]> {
   const { data, error } = await client
     .from("subscription_plans")
-    .select("id, name, price, duration_days, max_active_combos, description, is_default, is_active")
+    .select(PLAN_COLUMNS)
     .eq("is_active", true)
     .order("price", { ascending: true });
   if (error) throw error;
@@ -59,7 +63,7 @@ export async function listAllPlansForAdmin(
 ): Promise<SubscriptionPlan[]> {
   const { data, error } = await admin
     .from("subscription_plans")
-    .select("id, name, price, duration_days, max_active_combos, description, is_default, is_active")
+    .select(PLAN_COLUMNS)
     .order("price", { ascending: true });
   if (error) throw error;
   return data.map(mapPlan);
@@ -70,6 +74,7 @@ export interface CreatePlanInput {
   price: number;
   durationDays: number;
   maxActiveCombos: number | null;
+  tier: "free" | "basic" | "premium";
   description?: string;
 }
 
@@ -79,6 +84,7 @@ export async function createPlan(admin: SupabaseClient<Database>, input: CreateP
     price: input.price,
     duration_days: input.durationDays,
     max_active_combos: input.maxActiveCombos,
+    tier: input.tier,
     description: input.description ?? null,
   });
   if (error) throw error;
@@ -104,7 +110,7 @@ export async function getEffectiveSubscription(
 ): Promise<EffectiveSubscription> {
   const { data: defaultPlan, error: defaultError } = await admin
     .from("subscription_plans")
-    .select("name, max_active_combos")
+    .select("name, max_active_combos, tier")
     .eq("is_default", true)
     .limit(1)
     .maybeSingle();
@@ -126,6 +132,7 @@ export async function getEffectiveSubscription(
   if (!activeRow) {
     return {
       planName: defaultPlan?.name ?? "Free",
+      tier: defaultPlan?.tier ?? "free",
       maxActiveCombos: defaultPlan?.max_active_combos ?? null,
       locked: false,
       expiresAt: null,
@@ -135,7 +142,7 @@ export async function getEffectiveSubscription(
 
   const { data: plan, error: planError } = await admin
     .from("subscription_plans")
-    .select("name, max_active_combos")
+    .select("name, max_active_combos, tier")
     .eq("id", activeRow.plan_id)
     .single();
   if (planError) throw planError;
@@ -149,8 +156,13 @@ export async function getEffectiveSubscription(
     ? Math.ceil((expiresAt.getTime() - Date.now()) / 86_400_000)
     : null;
 
+  // A locked (expired) paid plan loses combo-creation rights (above) but
+  // NOT its tier's reporting perks — a store still gets to see its own
+  // Net Zero impact/restock suggestions while deciding whether to renew;
+  // only NEW combo creation is what the business rule actually blocks.
   return {
     planName: plan.name,
+    tier: plan.tier,
     maxActiveCombos: plan.max_active_combos,
     locked,
     expiresAt: activeRow.expires_at,

@@ -16,6 +16,10 @@ export const createPlanSchema = z.object({
     .optional()
     .transform((v) => (v === "" || v === undefined ? null : v)),
   description: z.string().trim().max(500).optional(),
+  // Decides which features this plan unlocks (Net Zero store report,
+  // restock suggestions, peak-hours stat) — independent of `name`, since a
+  // monthly and yearly plan can share the same tier (0031).
+  tier: z.enum(["free", "basic", "premium"]),
 });
 
 export type CreatePlanFormValues = z.infer<typeof createPlanSchema>;

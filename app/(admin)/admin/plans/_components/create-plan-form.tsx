@@ -16,6 +16,7 @@ export function CreatePlanForm() {
   const [price, setPrice] = useState("");
   const [durationDays, setDurationDays] = useState("30");
   const [maxActiveCombos, setMaxActiveCombos] = useState("");
+  const [tier, setTier] = useState<"free" | "basic" | "premium">("basic");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,6 +29,7 @@ export function CreatePlanForm() {
         price: Number(price),
         durationDays: Number(durationDays),
         maxActiveCombos: maxActiveCombos === "" ? "" : Number(maxActiveCombos),
+        tier,
         description: description || undefined,
       });
       toast.success("Đã tạo gói mới.");
@@ -86,6 +88,19 @@ export function CreatePlanForm() {
             value={maxActiveCombos}
             onChange={(e) => setMaxActiveCombos(e.target.value)}
           />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="plan-tier">Hạng gói (quyết định tính năng mở khoá)</Label>
+          <select
+            id="plan-tier"
+            value={tier}
+            onChange={(e) => setTier(e.target.value as "free" | "basic" | "premium")}
+            className="block w-full rounded-md border bg-background px-2.5 py-1.5 text-sm"
+          >
+            <option value="free">Free</option>
+            <option value="basic">Basic</option>
+            <option value="premium">Premium</option>
+          </select>
         </div>
       </div>
       <div className="space-y-1.5">

@@ -12,3 +12,14 @@ export interface NetZeroExpiry {
   date: string;
   points: number;
 }
+
+// Premium-tier store perk (subscription_plans.tier='premium', 0031) — a
+// store's own contribution to the platform's Net Zero mission, not the
+// customer-facing balance. Reuses the exact same co2_factors×quantity data
+// net_zero_ledger already records per paid order, just aggregated by store
+// instead of by customer.
+export interface StoreNetZeroImpact {
+  totalCo2SavedKg: number;
+  totalFoodRescuedKg: number;
+  orderCount: number;
+}

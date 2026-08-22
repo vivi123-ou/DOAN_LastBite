@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
-import { getStoreMonthlyStats } from "@/lib/repositories/order.repository";
+import { getStoreMonthlyStats, getPeakSellingHour } from "@/lib/repositories/order.repository";
 import { getStoreStats } from "@/lib/repositories/review.repository";
+import { getEffectiveSubscription } from "@/lib/repositories/subscription.repository";
+import { getStoreImpact } from "@/lib/repositories/net-zero.repository";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Flag, Star } from "lucide-react";
+import { Flag, Star, Clock, Leaf, Sparkles } from "lucide-react";
 import { StoreRegistrationForm } from "@/app/(store)/dashboard/_components/store-registration-form";
 import type { ComboRatingSummary } from "@/lib/domain/review";
 
@@ -44,9 +47,19 @@ export default async function StoreDashboardPage() {
   // Same "missing table, not just a missing column" resilience exception
   // as combos/[id]/page.tsx — a store owner's whole dashboard overview
   // shouldn't 500 just because the review analytics add-on can't load yet.
-  const [stats, reviewStats] = await Promise.all([
+  const admin = createAdminClient();
+  const [stats, reviewStats, effective] = await Promise.all([
     getStoreMonthlyStats(supabase, store.id),
     getStoreStats(supabase, store.id).catch(() => ({ topRated: [], lowestRated: [], reportCount: 0 })),
+    getEffectiveSubscription(admin, store.id),
+  ]);
+
+  // Basic+/Premium-only perks (0031) — fetched only when the store's tier
+  // actually unlocks them, not computed then hidden, so a Free store never
+  // pays the query cost for a report it can't see.
+  const [peakHour, netZeroImpact] = await Promise.all([
+    effective.tier !== "free" ? getPeakSellingHour(supabase, store.id) : Promise.resolve(null),
+    effective.tier === "premium" ? getStoreImpact(supabase, store.id) : Promise.resolve(null),
   ]);
 
   return (
@@ -112,6 +125,60 @@ export default async function StoreDashboardPage() {
           </Card>
         </div>
       </div>
+
+      {(peakHour || netZeroImpact) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {peakHour && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-1.5 text-sm">
+                  <Clock className="size-4 text-primary" />
+                  Khung giờ bán chạy nhất (30 ngày qua)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-primary">{peakHour.hourLabel}</p>
+                <p className="text-xs text-muted-foreground">{peakHour.orderCount} đơn trong khung giờ này</p>
+              </CardContent>
+            </Card>
+          )}
+          {netZeroImpact && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-1.5 text-sm">
+                  <Leaf className="size-4 text-primary" />
+                  Tác động Net Zero của cửa hàng
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                <p className="text-2xl font-bold text-primary">
+                  {netZeroImpact.totalCo2SavedKg.toFixed(1)} kg CO2
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  ≈ {netZeroImpact.totalFoodRescuedKg.toFixed(1)} kg thực phẩm được giải cứu qua{" "}
+                  {netZeroImpact.orderCount} đơn đã thanh toán
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {effective.tier !== "premium" && (
+        <Card className="border-dashed">
+          <CardContent className="flex items-center gap-3 p-4">
+            <Sparkles className="size-5 shrink-0 text-primary" />
+            <p className="text-sm text-muted-foreground">
+              Nâng cấp lên <strong className="text-foreground">Premium</strong> để xem báo cáo tác
+              động Net Zero của cửa hàng và nhận gợi ý số lượng nhập hàng thông minh khi bán lại
+              combo.{" "}
+              <Link href="/dashboard/subscription" className="text-primary underline underline-offset-2">
+                Xem các gói
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {(reviewStats.topRated.length > 0 || reviewStats.reportCount > 0) && (
         <div>
