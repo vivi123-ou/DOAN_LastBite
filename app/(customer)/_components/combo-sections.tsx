@@ -168,7 +168,13 @@ export function ComboSections({
   return (
     <div className="space-y-8">
       {sponsoredCombos.length > 0 && (
-        <ComboCarousel title="Ưu đãi nổi bật" combos={sponsoredCombos} viewerStoreId={viewerStoreId} isAdmin={isAdmin} />
+        <ComboCarousel
+          title="Ưu đãi nổi bật"
+          combos={sponsoredCombos}
+          viewerStoreId={viewerStoreId}
+          isAdmin={isAdmin}
+          variant="hot"
+        />
       )}
 
       {SECTIONS.map((section) => {

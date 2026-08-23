@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Flame } from "lucide-react";
 import { ComboCard } from "@/components/combo/combo-card";
 import type { NearbyCombo } from "@/lib/domain/combo";
 
@@ -27,6 +27,7 @@ export function ComboCarousel({
   viewerStoreId,
   isAdmin,
   viewAllHref,
+  variant = "default",
 }: {
   title: string;
   combos: NearbyCombo[];
@@ -37,6 +38,14 @@ export function ComboCarousel({
   // natural "see everything in this shelf" destination (e.g. "Gợi ý cho
   // bạn", which isn't a real filterable category).
   viewAllHref?: string;
+  // "hot" wraps the row in a red-accented frame — a deliberate, scoped
+  // exception to the site's green-everywhere branding rule
+  // (.claude/rules/business-rules.md), same reasoning real marketplaces
+  // already use red specifically for urgency/promo call-outs (Shopee's own
+  // flash-sale countdown, still orange-branded everywhere else) while
+  // staying on-brand elsewhere. Only ever used for the sponsored-combos row
+  // (combo-sections.tsx) — every other row stays the plain default look.
+  variant?: "default" | "hot";
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -84,12 +93,36 @@ export function ComboCarousel({
     return () => clearInterval(interval);
   }, [canScrollRight, canScrollLeft, paused]);
 
+  const isHot = variant === "hot";
+
   return (
-    <section className="space-y-3">
+    <section
+      className={
+        isHot
+          ? "space-y-3 rounded-2xl border-2 border-red-500/70 bg-gradient-to-br from-red-50 via-white to-orange-50 p-4 shadow-sm dark:border-red-500/50 dark:from-red-950/30 dark:via-background dark:to-orange-950/20"
+          : "space-y-3"
+      }
+    >
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold sm:text-2xl">{title}</h2>
+        <h2
+          className={
+            isHot
+              ? "flex items-center gap-1.5 text-xl font-bold text-red-600 sm:text-2xl dark:text-red-400"
+              : "text-xl font-bold sm:text-2xl"
+          }
+        >
+          {isHot && <Flame className="size-5 shrink-0 fill-red-500 text-red-500" />}
+          {title}
+        </h2>
         {viewAllHref && (
-          <Link href={viewAllHref} className="text-sm font-medium text-primary hover:underline">
+          <Link
+            href={viewAllHref}
+            className={
+              isHot
+                ? "text-sm font-medium text-red-600 hover:underline dark:text-red-400"
+                : "text-sm font-medium text-primary hover:underline"
+            }
+          >
             Xem tất cả →
           </Link>
         )}
