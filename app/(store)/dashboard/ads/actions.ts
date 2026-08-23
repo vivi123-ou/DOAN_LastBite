@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
-import { createPendingBooking, cancelOwnPendingBooking } from "@/lib/repositories/ad.repository";
+import { createPendingBooking, cancelOwnPendingBooking, recordVnpayTxnRef } from "@/lib/repositories/ad.repository";
 import { createMomoPayment } from "@/lib/payments/momo";
 import { createVnpayPaymentUrl } from "@/lib/payments/vnpay";
 import { parseOrThrow } from "@/lib/validation/parse";
@@ -86,13 +86,18 @@ export async function initiateVnpayAdPaymentAction(rawInput: BookAdInput): Promi
   });
 
   const [origin, ipAddr] = await Promise.all([getSiteOrigin(), getClientIp()]);
-  const payUrl = createVnpayPaymentUrl({
+  const { payUrl, txnRef, createDate } = createVnpayPaymentUrl({
     orderId: bookingId,
     amount,
     ipAddr,
     returnUrl: `${origin}/dashboard/ads`,
     orderInfo: `LastBite thanh toan quang cao ${placementName} ${bookingId}`,
   });
+  // Persisted so the booking can later be reconciled directly against
+  // VNPay's own querydr API if the IPN webhook never confirms it (see
+  // ad.repository.ts's reconcileBookingWithVnpay()) — best-effort, doesn't
+  // block the actual redirect to VNPay.
+  await recordVnpayTxnRef(admin, bookingId, txnRef, createDate);
   revalidatePath("/dashboard/ads");
   return { payUrl };
 }

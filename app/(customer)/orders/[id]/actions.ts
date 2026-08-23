@@ -86,7 +86,7 @@ export async function initiateVnpayPaymentAction(orderId: string): Promise<{ pay
   }
 
   const [origin, ipAddr] = await Promise.all([getSiteOrigin(), getClientIp()]);
-  const payUrl = createVnpayPaymentUrl({
+  const { payUrl } = createVnpayPaymentUrl({
     orderId: order.id,
     amount: order.totalAmount,
     ipAddr,
