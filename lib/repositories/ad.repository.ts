@@ -266,11 +266,104 @@ export async function markBookingPaid(
   }
 }
 
+// A real, honest fallback — not automation — for exactly two situations:
+// (1) the actual "xét duyệt thủ công bởi quản trị viên" step diamond_partner's
+// own description promises (an admin can require a manual look before
+// granting the badge, not just clean up conflicts after the fact), and (2)
+// a gateway IPN genuinely not arriving (caught live: a real VNPay sandbox
+// test payment completed on VNPay's side but the webhook never confirmed
+// it here) — the store already paid in that case, an admin needs a way to
+// unblock them without waiting on a gateway mystery. `payment_method`/
+// `provider_txn_id` are left null (no real gateway transaction backs this),
+// distinct from a real markBookingPaid() call — `admin_note` records that
+// it was a manual override, not silently indistinguishable from a real one.
+export async function markBookingPaidManually(
+  admin: SupabaseClient<Database>,
+  bookingId: string,
+  adminNote?: string
+): Promise<void> {
+  const { data: row, error } = await admin
+    .from("ad_bookings")
+    .select("status, placement_type_id, store_id")
+    .eq("id", bookingId)
+    .single();
+  if (error) throw error;
+  if (row.status === "active") return;
+
+  const { data: placement, error: placementError } = await admin
+    .from("ad_placement_types")
+    .select("duration_days, name")
+    .eq("id", row.placement_type_id)
+    .single();
+  if (placementError) throw placementError;
+
+  const now = new Date();
+  const endsAt = new Date(now.getTime() + placement.duration_days * 86_400_000);
+
+  const { error: updateError } = await admin
+    .from("ad_bookings")
+    .update({
+      status: "active",
+      starts_at: now.toISOString(),
+      ends_at: endsAt.toISOString(),
+      admin_note: adminNote || "Admin xác nhận thanh toán thủ công",
+    })
+    .eq("id", bookingId);
+  if (updateError) throw updateError;
+
+  const ownerId = await getOwnerIdById(admin, row.store_id);
+  if (ownerId) {
+    await createNotification(admin, {
+      userId: ownerId,
+      type: "ad_activated",
+      title: "Quảng cáo đã được kích hoạt",
+      body: `Gói "${placement.name}" của cửa hàng bạn đang chạy tới ${endsAt.toLocaleDateString("vi-VN")}.`,
+      payload: { bookingId },
+    }).catch(() => {});
+  }
+}
+
+// Store-facing cancel — the one self-service action a store gets on its own
+// booking, and only while there's genuinely nothing to lose yet: no money
+// has been confirmed collected (still 'pending_payment'). Cancelling an
+// already-'active' (paid) booking is deliberately NOT exposed to the store
+// itself — that's a refund-adjacent decision, same posture as this app's
+// other explicitly-deferred refund handling (see CLAUDE.md's admin-module
+// notes), left to admin discretion via cancelBooking() below instead.
+// Ownership + status are both re-checked here, not just assumed from
+// which store's dashboard the action was clicked from — this repository
+// function could otherwise be called from any admin-client context.
+export async function cancelOwnPendingBooking(
+  admin: SupabaseClient<Database>,
+  bookingId: string,
+  storeId: string
+): Promise<void> {
+  const { data: row, error } = await admin
+    .from("ad_bookings")
+    .select("store_id, status")
+    .eq("id", bookingId)
+    .single();
+  if (error) throw error;
+  if (row.store_id !== storeId) throw new Error("Bạn không có quyền huỷ quảng cáo này.");
+  if (row.status !== "pending_payment") {
+    throw new Error("Chỉ có thể tự huỷ khi đang ở trạng thái chờ thanh toán.");
+  }
+
+  const { error: updateError } = await admin
+    .from("ad_bookings")
+    .update({ status: "cancelled" })
+    .eq("id", bookingId);
+  if (updateError) throw updateError;
+}
+
 // Admin-only judgment call, not automated enforcement — this app has no
 // real geo-exclusivity engine, so "Đối tác Kim Cương độc quyền khu vực" is
 // backed by an admin manually reviewing overlapping active bookings
 // (listBookingsForAdmin filtered to diamond_partner) and cancelling one via
-// this function, with a note explaining why.
+// this function, with a note explaining why. Also the general-purpose
+// admin cancel for any booking regardless of status (pending or already
+// active) — surfaced on every row in /admin/ads's full table, not just the
+// diamond-conflict callout section.
 export async function cancelBooking(
   admin: SupabaseClient<Database>,
   bookingId: string,

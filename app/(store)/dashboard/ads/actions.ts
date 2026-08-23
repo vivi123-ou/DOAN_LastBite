@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
-import { createPendingBooking } from "@/lib/repositories/ad.repository";
+import { createPendingBooking, cancelOwnPendingBooking } from "@/lib/repositories/ad.repository";
 import { createMomoPayment } from "@/lib/payments/momo";
 import { createVnpayPaymentUrl } from "@/lib/payments/vnpay";
 import { parseOrThrow } from "@/lib/validation/parse";
@@ -95,4 +95,16 @@ export async function initiateVnpayAdPaymentAction(rawInput: BookAdInput): Promi
   });
   revalidatePath("/dashboard/ads");
   return { payUrl };
+}
+
+// The store's one self-service action — cancel a purchase still awaiting
+// payment (picked the wrong combo/type, changed their mind, or just
+// clicked by accident). Ownership + status are re-checked inside
+// cancelOwnPendingBooking() itself, not just assumed from requireOwnStore()
+// having succeeded — this is a real authorization boundary, not a UI-only
+// convenience, since ad_bookings has zero client-facing write policy.
+export async function cancelBookingAction(bookingId: string) {
+  const store = await requireOwnStore();
+  await cancelOwnPendingBooking(createAdminClient(), bookingId, store.id);
+  revalidatePath("/dashboard/ads");
 }

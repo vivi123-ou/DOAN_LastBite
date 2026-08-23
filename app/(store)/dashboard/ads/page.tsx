@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Eye, MousePointerClick } from "lucide-react";
 import { AdBookingForm } from "@/app/(store)/dashboard/ads/_components/ad-booking-form";
+import { CancelPendingBookingButton } from "@/app/(store)/dashboard/ads/_components/cancel-pending-booking-button";
 
 const STATUS_LABEL: Record<string, string> = {
   pending_payment: "Chờ thanh toán",
@@ -92,6 +93,11 @@ export default async function StoreAdsPage() {
                   )}
                   {b.adminNote && (
                     <p className="text-xs text-destructive">Ghi chú từ admin: {b.adminNote}</p>
+                  )}
+                  {b.status === "pending_payment" && (
+                    <div>
+                      <CancelPendingBookingButton bookingId={b.id} />
+                    </div>
                   )}
                 </CardContent>
               </Card>
