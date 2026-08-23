@@ -12,6 +12,12 @@ import crypto from "node:crypto";
 const TMN_CODE = process.env.VNPAY_TMN_CODE ?? "";
 const HASH_SECRET = process.env.VNPAY_HASH_SECRET ?? "";
 const PAYMENT_URL = process.env.VNPAY_URL ?? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+// VNPay's "Merchant Webservice" — a genuinely separate API from the
+// vpcpay.html redirect above, used for querydr (query transaction status).
+// Same sandbox host, different path — live-verified against the real
+// endpoint before this went into the app (see queryVnpayTransaction()'s
+// own comment).
+const QUERY_URL = process.env.VNPAY_QUERY_URL ?? "https://sandbox.vnpayment.vn/merchant_webapi/api/transaction";
 
 // Same diacritic-stripping technique as lib/storage/image-upload.ts's
 // slugifyFilename() (NFD-normalize + drop combining marks, handle đ/Đ
@@ -101,14 +107,27 @@ export interface CreateVnpayPaymentInput {
   orderInfo?: string;
 }
 
-// Returns the full URL to redirect the customer's browser to — there's no
-// "create payment, get a token back" step to await the way MoMo has.
-export function createVnpayPaymentUrl(input: CreateVnpayPaymentInput): string {
+export interface CreateVnpayPaymentResult {
+  payUrl: string;
+  // Both needed later to query this exact transaction's real status via
+  // queryVnpayTransaction() (VNPay's querydr requires the original
+  // vnp_TxnRef + vnp_CreateDate to identify which attempt you mean) —
+  // callers that want reconciliation must persist these against their own
+  // row (see ad.repository.ts's recordVnpayTxnRef()).
+  txnRef: string;
+  createDate: string;
+}
+
+// Returns the full URL to redirect the customer's browser to (plus the
+// txn reference needed to query it later) — there's no "create payment,
+// get a token back" step to await the way MoMo has.
+export function createVnpayPaymentUrl(input: CreateVnpayPaymentInput): CreateVnpayPaymentResult {
   const now = new Date();
   // vnp_TxnRef only needs to be unique per attempt to VNPay itself — it's
   // not how LastBite's own order id gets recovered later (that's
   // vnp_OrderInfo's job, see below), so a plain timestamp is enough.
   const txnRef = String(Date.now());
+  const createDate = formatVnpayDate(now);
 
   const params: Record<string, string> = {
     vnp_Version: "2.1.0",
@@ -127,14 +146,14 @@ export function createVnpayPaymentUrl(input: CreateVnpayPaymentInput): string {
     vnp_Amount: String(Math.round(input.amount) * 100),
     vnp_ReturnUrl: input.returnUrl,
     vnp_IpAddr: input.ipAddr,
-    vnp_CreateDate: formatVnpayDate(now),
+    vnp_CreateDate: createDate,
   };
 
   const pairs = sortAndEncode(params);
   const signData = buildSignData(pairs);
   const secureHash = hmacSha512(signData);
 
-  return `${PAYMENT_URL}?${signData}&vnp_SecureHash=${secureHash}`;
+  return { payUrl: `${PAYMENT_URL}?${signData}&vnp_SecureHash=${secureHash}`, txnRef, createDate };
 }
 
 // Recovers LastBite's own order id from vnp_OrderInfo — see
@@ -161,4 +180,107 @@ export function verifyVnpaySignature(
   const a = Buffer.from(expected, "hex");
   const b = Buffer.from(receivedHash ?? "", "hex");
   return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+export interface QueryVnpayTransactionInput {
+  txnRef: string;
+  // The original vnp_CreateDate from when the payment URL was built — this
+  // is what tells VNPay *which specific attempt* you're asking about
+  // (vnp_TxnRef alone isn't guaranteed unique forever in their system).
+  transactionDate: string;
+  orderInfo: string;
+  ipAddr: string;
+}
+
+export interface QueryVnpayTransactionResult {
+  responseCode: string;
+  message: string;
+  transactionStatus: string | null;
+  transactionNo: string | null;
+  amount: number | null;
+  // Convenience — true only for the one combination that actually means
+  // "this payment genuinely succeeded" (mirrors the exact check the IPN
+  // route already uses).
+  succeeded: boolean;
+}
+
+// VNPay's "querydr" API — a *separate* webservice from the vpcpay.html
+// redirect (different host path, different request shape: one signed JSON
+// POST instead of a signed query string), letting a merchant ask directly
+// "did this specific transaction actually succeed?" instead of only ever
+// passively waiting on the IPN webhook. This is the real second line of
+// defense real payment integrations use behind webhook confirmation (a
+// webhook can fail to arrive for reasons that have nothing to do with
+// whether the payment itself succeeded) — a manual admin override is only
+// ever the last-resort fallback behind *this*, not a replacement for it.
+//
+// Request signature is a *different* shape from every other VNPay
+// signature in this file: a plain `|`-joined string in a fixed field order
+// (VNPay's own querydr spec), not the sorted-query-string form
+// vpcpay.html/IPN use. Live-verified against the real sandbox endpoint
+// before shipping — a deliberately-fake vnp_TxnRef correctly got back
+// `vnp_ResponseCode: "91"` ("Giao dịch không tồn tại"), confirming the
+// request shape itself (not just "some" response) is right.
+//
+// Deliberately does NOT re-verify a signature on the *response* — unlike
+// the IPN webhook (a public inbound endpoint anyone could POST/GET to,
+// where signature verification is the only thing standing between "real
+// VNPay" and "anyone pretending to be VNPay"), this is an outbound HTTPS
+// request *we* initiate straight to VNPay's own sandbox host — TLS already
+// authenticates that the response really came from vnpayment.vn. Several
+// plausible field orderings for VNPay's undocumented response-signature
+// format were tried against a real captured response and none matched;
+// shipping a guessed verification that might silently reject genuine
+// responses would be worse than relying on the transport-level guarantee
+// that's already there.
+export async function queryVnpayTransaction(
+  input: QueryVnpayTransactionInput
+): Promise<QueryVnpayTransactionResult> {
+  const requestId = String(Date.now());
+  const createDate = formatVnpayDate(new Date());
+  const command = "querydr";
+  const version = "2.1.0";
+
+  const signData = [
+    requestId,
+    version,
+    command,
+    TMN_CODE,
+    input.txnRef,
+    input.transactionDate,
+    createDate,
+    input.ipAddr,
+    input.orderInfo,
+  ].join("|");
+  const secureHash = hmacSha512(signData);
+
+  const res = await fetch(QUERY_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      vnp_RequestId: requestId,
+      vnp_Version: version,
+      vnp_Command: command,
+      vnp_TmnCode: TMN_CODE,
+      vnp_TxnRef: input.txnRef,
+      vnp_OrderInfo: input.orderInfo,
+      vnp_TransactionDate: input.transactionDate,
+      vnp_CreateDate: createDate,
+      vnp_IpAddr: input.ipAddr,
+      vnp_SecureHash: secureHash,
+    }),
+  });
+  const json = (await res.json()) as Record<string, string | undefined>;
+
+  const responseCode = json.vnp_ResponseCode ?? "";
+  const transactionStatus = json.vnp_TransactionStatus ?? null;
+
+  return {
+    responseCode,
+    message: json.vnp_Message ?? "",
+    transactionStatus,
+    transactionNo: json.vnp_TransactionNo ?? null,
+    amount: json.vnp_Amount ? Number(json.vnp_Amount) / 100 : null,
+    succeeded: responseCode === "00" && transactionStatus === "00",
+  };
 }

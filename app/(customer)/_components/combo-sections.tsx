@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MapPin } from "lucide-react";
 import { getCurrentPosition, type Coordinates } from "@/lib/geo/geolocation";
 import { ComboCarousel } from "@/components/combo/combo-carousel";
 import { recordSponsoredImpressionsAction } from "@/app/(customer)/_components/ad-tracking.actions";
@@ -10,15 +9,25 @@ import type { Category } from "@/lib/domain/category";
 
 type SectionKey = "nearby" | "newest" | "recommended";
 
-const SECTIONS: { key: SectionKey; title: string }[] = [
-  { key: "nearby", title: "Gần bạn nhất" },
-  { key: "newest", title: "Mới nhất" },
+const SECTIONS: { key: SectionKey; title: string; viewAllHref?: string }[] = [
+  { key: "nearby", title: "Gần bạn nhất", viewAllHref: "/map" },
+  { key: "newest", title: "Mới nhất", viewAllHref: "/?sort=newest" },
   { key: "recommended", title: "Gợi ý cho bạn" },
 ];
 
+// Same city-center fallback already used elsewhere in this app (the store
+// location picker's default map center) — lets every section except "Gần
+// bạn nhất" render real results immediately, instead of the whole homepage
+// sitting on a blank "Đang tìm vị trí..." screen until the browser's GPS
+// permission prompt resolves. Only "Gần bạn nhất" genuinely needs the
+// customer's real position; everything else is upgraded to it silently in
+// the background once/if it becomes available (see the second useEffect).
+const DEFAULT_CENTER: Coordinates = { lat: 10.7769, lng: 106.7009 };
+
 // The homepage's default "Tất cả" browsing view (no category/search filter
-// active) — three curated carousel rows, then one row per category so
-// every listed type gets its own shelf. Selecting a specific category pill
+// active) — a curated "Sản phẩm được tài trợ" row (when any exist) up top,
+// then three curated carousel rows, then one row per category so every
+// listed type gets its own shelf. Selecting a specific category pill
 // (category-rail.tsx) switches the homepage to search-results-section.tsx
 // instead (a single newest-sorted list for just that category) — see
 // page.tsx's isFiltered switch — so this component never has to handle a
@@ -37,79 +46,92 @@ export function ComboSections({
   viewerStoreId?: string;
   isAdmin?: boolean;
 }) {
-  const [locationState, setLocationState] = useState<"locating" | "ready" | "denied">("locating");
-  const coordsRef = useRef<Coordinates | null>(null);
+  // "Gần bạn nhất" alone tracks real-geolocation state — the rest of the
+  // page never waits on this.
+  const [nearbyState, setNearbyState] = useState<"locating" | "ready" | "denied">("locating");
+  const realCoordsRef = useRef<Coordinates | null>(null);
   const [combosBySection, setCombosBySection] = useState<Partial<Record<SectionKey, NearbyCombo[]>>>(
     {}
   );
   const [combosByCategory, setCombosByCategory] = useState<Record<string, NearbyCombo[]>>({});
 
+  async function fetchSection(key: Exclude<SectionKey, "nearby">, coords: Coordinates) {
+    const params = new URLSearchParams({ lat: String(coords.lat), lng: String(coords.lng) });
+    let endpoint = "/api/combos/nearby";
+
+    if (key === "newest") {
+      endpoint = "/api/combos/search";
+      params.set("sort", "newest");
+    } else if (key === "recommended") {
+      if (!recommendedCategoryId) {
+        setCombosBySection((c) => ({ ...c, recommended: [] }));
+        return;
+      }
+      params.set("categoryId", recommendedCategoryId);
+    }
+
+    const res = await fetch(`${endpoint}?${params.toString()}`);
+    if (!res.ok) return;
+    const { combos } = await res.json();
+    setCombosBySection((c) => ({ ...c, [key]: combos }));
+  }
+
+  async function fetchNearby(coords: Coordinates) {
+    const params = new URLSearchParams({ lat: String(coords.lat), lng: String(coords.lng) });
+    const res = await fetch(`/api/combos/nearby?${params.toString()}`);
+    if (!res.ok) return;
+    const { combos } = await res.json();
+    setCombosBySection((c) => ({ ...c, nearby: combos }));
+  }
+
+  async function fetchCategory(categoryId: string, coords: Coordinates) {
+    const params = new URLSearchParams({ lat: String(coords.lat), lng: String(coords.lng), categoryId });
+    const res = await fetch(`/api/combos/nearby?${params.toString()}`);
+    if (!res.ok) return;
+    const { combos } = await res.json();
+    setCombosByCategory((c) => ({ ...c, [categoryId]: combos }));
+  }
+
+  // Fires immediately on mount, on the fallback city center — "Mới nhất",
+  // "Gợi ý cho bạn", and every category shelf don't need to wait for real
+  // geolocation to show something real. Deferred one microtask (same
+  // Promise.resolve().then() escape hatch this component already relied
+  // on before) so the fetch calls' eventual setState doesn't happen
+  // synchronously within the effect body itself
+  // (react-hooks/set-state-in-effect).
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchSection("newest", DEFAULT_CENTER);
+      fetchSection("recommended", DEFAULT_CENTER);
+      categories.forEach((cat) => fetchCategory(cat.id, DEFAULT_CENTER));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once on mount, categories/recommendedCategoryId changing mid-session isn't a case this page needs to react to
+  }, []);
+
+  // Separately requests real geolocation for "Gần bạn nhất" specifically —
+  // and, once/if it resolves, silently re-fetches every other section with
+  // the real coordinates too (an upgrade from the city-center default to
+  // genuinely-near results, not a loading state anyone has to wait through).
   useEffect(() => {
     let cancelled = false;
     getCurrentPosition()
       .then((coords) => {
         if (cancelled) return;
-        coordsRef.current = coords;
-        setLocationState("ready");
+        realCoordsRef.current = coords;
+        setNearbyState("ready");
+        fetchNearby(coords);
+        fetchSection("newest", coords);
+        fetchSection("recommended", coords);
+        categories.forEach((cat) => fetchCategory(cat.id, coords));
       })
       .catch(() => {
-        if (!cancelled) setLocationState("denied");
+        if (!cancelled) setNearbyState("denied");
       });
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once on mount, same reasoning as the effect above
   }, []);
-
-  useEffect(() => {
-    if (locationState !== "ready" || !coordsRef.current) return;
-    let cancelled = false;
-    const { lat, lng } = coordsRef.current;
-
-    async function fetchSection(key: SectionKey) {
-      const params = new URLSearchParams({ lat: String(lat), lng: String(lng) });
-      let endpoint = "/api/combos/nearby";
-
-      if (key === "newest") {
-        endpoint = "/api/combos/search";
-        params.set("sort", "newest");
-      } else if (key === "recommended") {
-        if (!recommendedCategoryId) {
-          if (!cancelled) setCombosBySection((c) => ({ ...c, recommended: [] }));
-          return;
-        }
-        params.set("categoryId", recommendedCategoryId);
-      }
-
-      const res = await fetch(`${endpoint}?${params.toString()}`);
-      if (cancelled || !res.ok) return;
-      const { combos } = await res.json();
-      if (cancelled) return;
-      setCombosBySection((c) => ({ ...c, [key]: combos }));
-    }
-
-    async function fetchCategory(categoryId: string) {
-      const params = new URLSearchParams({ lat: String(lat), lng: String(lng), categoryId });
-      const res = await fetch(`/api/combos/nearby?${params.toString()}`);
-      if (cancelled || !res.ok) return;
-      const { combos } = await res.json();
-      if (cancelled) return;
-      setCombosByCategory((c) => ({ ...c, [categoryId]: combos }));
-    }
-
-    // Every row (the three curated sections + one per category) loads in
-    // parallel — they're independent shelves shown at once, not lazily
-    // fetched per active tab.
-    Promise.resolve().then(() => {
-      fetchSection("nearby");
-      fetchSection("newest");
-      fetchSection("recommended");
-      categories.forEach((cat) => fetchCategory(cat.id));
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [locationState, recommendedCategoryId, categories]);
 
   // Impression tracking (0035) — fires once per sponsored combo per page
   // load, not once per re-render: recordedRef tracks which ids have
@@ -127,26 +149,28 @@ export function ComboSections({
     void recordSponsoredImpressionsAction(newSponsoredIds);
   }, [combosBySection, combosByCategory]);
 
-  if (locationState === "locating") {
-    return (
-      <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-        <MapPin className="size-4 animate-pulse" />
-        Đang tìm combo gần bạn...
-      </p>
-    );
-  }
-
-  if (locationState === "denied") {
-    return (
-      <p className="py-8 text-sm text-muted-foreground">
-        LastBite cần quyền truy cập vị trí để tìm combo gần bạn. Vui lòng cho phép định vị và tải
-        lại trang.
-      </p>
-    );
-  }
+  // A dedicated, prominent "được tài trợ" shelf up top — gathered from
+  // whatever's already loaded across every other row rather than a
+  // separate fetch, deduped by comboId (the same sponsored combo often
+  // legitimately also appears in its own category's shelf; showing it here
+  // too is the point — advertisers pay for extra prominence, not just an
+  // in-context badge).
+  const sponsoredCombos = (() => {
+    const all = [...Object.values(combosBySection).flat(), ...Object.values(combosByCategory).flat()];
+    const seen = new Set<string>();
+    return all.filter((c) => {
+      if (!c.isSponsored || seen.has(c.comboId)) return false;
+      seen.add(c.comboId);
+      return true;
+    });
+  })();
 
   return (
     <div className="space-y-8">
+      {sponsoredCombos.length > 0 && (
+        <ComboCarousel title="Ưu đãi nổi bật" combos={sponsoredCombos} viewerStoreId={viewerStoreId} isAdmin={isAdmin} />
+      )}
+
       {SECTIONS.map((section) => {
         if (section.key === "recommended" && !recommendedCategoryId) {
           return (
@@ -162,6 +186,20 @@ export function ComboSections({
         }
 
         const combos = combosBySection[section.key];
+        // "Gần bạn nhất" specifically has its own denied-state message —
+        // every other row has already loaded real (city-default) results
+        // regardless of whether location permission is ever granted.
+        if (section.key === "nearby" && nearbyState === "denied") {
+          return (
+            <section key={section.key} className="space-y-3">
+              <h2 className="text-xl font-bold sm:text-2xl">{section.title}</h2>
+              <p className="py-6 text-sm text-muted-foreground">
+                LastBite cần quyền truy cập vị trí để tìm combo gần bạn. Vui lòng cho phép định vị
+                và tải lại trang.
+              </p>
+            </section>
+          );
+        }
         if (combos === undefined) {
           // Not yet loaded — distinct from "loaded, zero results" so the
           // carousel's own empty-state text doesn't flash during the fetch.
@@ -180,6 +218,7 @@ export function ComboSections({
             combos={combos}
             viewerStoreId={viewerStoreId}
             isAdmin={isAdmin}
+            viewAllHref={section.viewAllHref}
           />
         );
       })}
@@ -202,6 +241,7 @@ export function ComboSections({
             combos={combos}
             viewerStoreId={viewerStoreId}
             isAdmin={isAdmin}
+            viewAllHref={`/?categoryId=${cat.id}`}
           />
         );
       })}

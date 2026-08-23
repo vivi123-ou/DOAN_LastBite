@@ -12,6 +12,7 @@ import { CategoryRail } from "@/app/(customer)/_components/category-rail";
 import { ComboSections } from "@/app/(customer)/_components/combo-sections";
 import { SearchResultsSection } from "@/app/(customer)/_components/search-results-section";
 import { HomeBannerCarousel } from "@/app/(customer)/_components/home-banner-carousel";
+import { NearbyFab } from "@/app/(customer)/_components/nearby-fab";
 
 export default async function HomePage({
   searchParams,
@@ -134,6 +135,8 @@ export default async function HomePage({
           />
         </Suspense>
       )}
+
+      <NearbyFab />
     </div>
   );
 }

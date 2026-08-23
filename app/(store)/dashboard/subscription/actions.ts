@@ -70,7 +70,7 @@ export async function initiateVnpaySubscriptionPaymentAction(
   const { subscriptionId, amount, planName } = await createPendingPurchase(admin, store.id, planId);
 
   const [origin, ipAddr] = await Promise.all([getSiteOrigin(), getClientIp()]);
-  const payUrl = createVnpayPaymentUrl({
+  const { payUrl } = createVnpayPaymentUrl({
     orderId: subscriptionId,
     amount,
     ipAddr,

@@ -10,6 +10,8 @@ import {
   setPlacementTypeActive,
   cancelBooking,
   markBookingPaidManually,
+  reconcileBookingWithVnpay,
+  type ReconcileResult,
 } from "@/lib/repositories/ad.repository";
 import { createPlacementTypeSchema } from "@/lib/validation/ad.schema";
 import { parseOrThrow } from "@/lib/validation/parse";
@@ -57,4 +59,16 @@ export async function markBookingPaidManuallyAction(bookingId: string, note: str
   await requireAdmin();
   await markBookingPaidManually(createAdminClient(), bookingId, note || undefined);
   revalidatePath("/admin/ads");
+}
+
+// The real reconciliation path — asks VNPay directly via querydr whether a
+// pending booking's transaction actually succeeded, and activates it for
+// real (through markBookingPaid(), same as a genuine IPN would) if so.
+// This is the primary thing to try before ever reaching for the manual
+// override above.
+export async function reconcileVnpayBookingAction(bookingId: string): Promise<ReconcileResult> {
+  await requireAdmin();
+  const result = await reconcileBookingWithVnpay(createAdminClient(), bookingId);
+  revalidatePath("/admin/ads");
+  return result;
 }

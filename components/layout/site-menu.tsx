@@ -18,17 +18,17 @@ interface NavItem {
 
 // An anchored dropdown (not a fixed full-height drawer — that version had
 // a layout bug and was reverted per explicit feedback) with a fade + scale
-// transition. Still opens by default on first load so the nav is
-// discoverable immediately, and still closes on scroll-down (the sticky
-// header stays put; only the panel hides) — those two behaviors were
-// explicitly asked for and kept, only the *shape* of the menu changed.
-// "Cửa hàng của tôi" is shown to *any* logged-in account, not just
-// store_owner — /dashboard already branches to the registration form for
-// accounts with no store yet (app/(store)/dashboard/page.tsx).
+// transition. Closed by default on load — an earlier round explicitly
+// wanted it open on load, but that read as the site "auto-clicking the
+// menu" for the user and was reverted back per direct follow-up feedback.
+// Still closes on scroll-down / outside-click, unchanged. "Cửa hàng của
+// tôi" is shown to *any* logged-in account, not just store_owner —
+// /dashboard already branches to the registration form for accounts with
+// no store yet (app/(store)/dashboard/page.tsx).
 export function SiteMenu({ role, isLoggedIn }: SiteMenuProps) {
   const pathname = usePathname();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let lastY = window.scrollY;

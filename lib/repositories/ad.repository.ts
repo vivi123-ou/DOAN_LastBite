@@ -3,6 +3,7 @@ import type { Database } from "@/types/database.types";
 import type { AdBooking, AdPlacementType } from "@/lib/domain/ad";
 import { getOwnerIdById } from "@/lib/repositories/store.repository";
 import { create as createNotification } from "@/lib/repositories/notification.repository";
+import { queryVnpayTransaction } from "@/lib/payments/vnpay";
 
 // Every function below except listPlacementTypes()/listBookingsForStore()
 // (both same-actor-safe reads scoped by existing RLS) uses the service-role
@@ -204,6 +205,24 @@ export async function createPendingBooking(
   return { bookingId: row.id, amount: placement.price, placementName: placement.name };
 }
 
+// Persists the vnp_TxnRef/vnp_CreateDate generated at payment-URL-build
+// time (lib/payments/vnpay.ts's createVnpayPaymentUrl()) against the
+// booking — without this, there would be nothing later to hand
+// queryVnpayTransaction() to identify which specific VNPay attempt to ask
+// about. Best-effort: a failure here shouldn't block the redirect to
+// VNPay actually happening.
+export async function recordVnpayTxnRef(
+  admin: SupabaseClient<Database>,
+  bookingId: string,
+  txnRef: string,
+  createDate: string
+): Promise<void> {
+  await admin
+    .from("ad_bookings")
+    .update({ vnp_txn_ref: txnRef, vnp_create_date: createDate })
+    .eq("id", bookingId);
+}
+
 export async function getBookingById(
   admin: SupabaseClient<Database>,
   id: string
@@ -212,6 +231,74 @@ export async function getBookingById(
   if (error) throw error;
   if (!data) return null;
   return { id: data.id, status: data.status, amountPaid: data.amount_paid };
+}
+
+// The real second line of defense behind the IPN webhook — asks VNPay
+// directly "did this specific transaction actually succeed?" via their
+// querydr API (lib/payments/vnpay.ts's queryVnpayTransaction()), instead of
+// only ever passively waiting for a webhook that (as caught live this
+// round) doesn't always arrive. Only activates the booking through the
+// exact same markBookingPaid() a real IPN would call — this is a genuine
+// confirmed-by-the-gateway activation, not the manual admin override,
+// which is why it records the real vnp_TransactionNo as provider_txn_id.
+export interface ReconcileResult {
+  found: boolean;
+  succeeded: boolean;
+  message: string;
+  alreadyActive: boolean;
+}
+
+export async function reconcileBookingWithVnpay(
+  admin: SupabaseClient<Database>,
+  bookingId: string
+): Promise<ReconcileResult> {
+  const { data: row, error } = await admin
+    .from("ad_bookings")
+    .select("status, vnp_txn_ref, vnp_create_date, placement_type_id")
+    .eq("id", bookingId)
+    .single();
+  if (error) throw error;
+
+  if (row.status === "active") {
+    return { found: true, succeeded: true, message: "Đã kích hoạt từ trước.", alreadyActive: true };
+  }
+  if (!row.vnp_txn_ref || !row.vnp_create_date) {
+    return {
+      found: false,
+      succeeded: false,
+      message: "Lượt mua này chưa từng thử thanh toán qua VNPay (không có mã giao dịch để tra cứu).",
+      alreadyActive: false,
+    };
+  }
+
+  const { data: placement, error: placementError } = await admin
+    .from("ad_placement_types")
+    .select("name")
+    .eq("id", row.placement_type_id)
+    .single();
+  if (placementError) throw placementError;
+
+  const result = await queryVnpayTransaction({
+    txnRef: row.vnp_txn_ref,
+    transactionDate: row.vnp_create_date,
+    orderInfo: `Kiem tra quang cao ${placement.name}`,
+    ipAddr: "127.0.0.1",
+  });
+
+  if (result.responseCode === "91") {
+    return { found: false, succeeded: false, message: "VNPay báo giao dịch không tồn tại.", alreadyActive: false };
+  }
+  if (!result.succeeded) {
+    return {
+      found: true,
+      succeeded: false,
+      message: `VNPay báo: ${result.message || "giao dịch chưa hoàn tất"} (mã ${result.responseCode}).`,
+      alreadyActive: false,
+    };
+  }
+
+  await markBookingPaid(admin, bookingId, "vnpay", result.transactionNo ?? undefined);
+  return { found: true, succeeded: true, message: "VNPay xác nhận giao dịch thành công — đã kích hoạt.", alreadyActive: false };
 }
 
 // Sibling of order.repository.ts's markPaid()/subscription.repository.ts's

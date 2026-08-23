@@ -425,6 +425,8 @@ export interface Database {
           impression_count: number;
           click_count: number;
           admin_note: string | null;
+          vnp_txn_ref: string | null;
+          vnp_create_date: string | null;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["ad_bookings"]["Row"]> & {
