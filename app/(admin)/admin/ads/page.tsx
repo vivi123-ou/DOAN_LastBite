@@ -7,6 +7,7 @@ import { AdminFilterBar } from "@/components/admin/admin-filter-bar";
 import { CreatePlacementTypeForm } from "@/app/(admin)/admin/ads/_components/create-placement-type-form";
 import { PlacementTypeActiveToggle } from "@/app/(admin)/admin/ads/_components/placement-type-active-toggle";
 import { CancelBookingButton } from "@/app/(admin)/admin/ads/_components/cancel-booking-button";
+import { MarkPaidManuallyButton } from "@/app/(admin)/admin/ads/_components/mark-paid-manually-button";
 
 const STATUS_LABEL: Record<string, string> = {
   pending_payment: "Chờ thanh toán",
@@ -140,6 +141,7 @@ export default async function AdminAdsPage({
                 <th className="px-3 py-2">Lượt xem / bấm</th>
                 <th className="px-3 py-2">Đã trả</th>
                 <th className="px-3 py-2">Trạng thái</th>
+                <th className="px-3 py-2">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -163,6 +165,18 @@ export default async function AdminAdsPage({
                     <Badge variant={b.status === "active" ? "default" : "outline"}>
                       {STATUS_LABEL[b.status] ?? b.status}
                     </Badge>
+                  </td>
+                  <td className="px-3 py-2">
+                    {/* Both actions re-check role='admin' server-side
+                        (requireAdmin() in actions.ts) regardless of which
+                        buttons render here — this is UI convenience, not
+                        the actual authorization boundary. */}
+                    <div className="flex flex-col items-start gap-1.5">
+                      {b.status === "pending_payment" && <MarkPaidManuallyButton bookingId={b.id} />}
+                      {(b.status === "pending_payment" || b.status === "active") && (
+                        <CancelBookingButton bookingId={b.id} />
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

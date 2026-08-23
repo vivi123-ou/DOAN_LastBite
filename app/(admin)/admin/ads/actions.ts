@@ -5,7 +5,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getById } from "@/lib/repositories/profile.repository";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createPlacementType, setPlacementTypeActive, cancelBooking } from "@/lib/repositories/ad.repository";
+import {
+  createPlacementType,
+  setPlacementTypeActive,
+  cancelBooking,
+  markBookingPaidManually,
+} from "@/lib/repositories/ad.repository";
 import { createPlacementTypeSchema } from "@/lib/validation/ad.schema";
 import { parseOrThrow } from "@/lib/validation/parse";
 
@@ -40,5 +45,16 @@ export async function setPlacementTypeActiveAction(id: string, isActive: boolean
 export async function cancelBookingAction(bookingId: string, note: string) {
   await requireAdmin();
   await cancelBooking(createAdminClient(), bookingId, note || undefined);
+  revalidatePath("/admin/ads");
+}
+
+// The other half of "xét duyệt thủ công bởi quản trị viên" — an honest
+// fallback for a gateway IPN that doesn't confirm in time, not an
+// automated payment path. admin_note records that it was a manual
+// override (markBookingPaidManually's own default text if left blank),
+// distinct from a real gateway-confirmed one.
+export async function markBookingPaidManuallyAction(bookingId: string, note: string) {
+  await requireAdmin();
+  await markBookingPaidManually(createAdminClient(), bookingId, note || undefined);
   revalidatePath("/admin/ads");
 }
