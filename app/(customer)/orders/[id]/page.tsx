@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { OrderStatusTimeline } from "@/components/order/order-status-timeline";
 import { SimulatePaymentButton } from "@/app/(customer)/orders/[id]/_components/simulate-payment-button";
 import { ReviewForm } from "@/app/(customer)/orders/[id]/_components/review-form";
+import { PaymentReturnWatcher } from "@/components/payment/payment-return-watcher";
+import { derivePaymentReturnStatus } from "@/lib/payments/return-status";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Chờ xác nhận",
@@ -24,8 +26,10 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default async function OrderDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -34,6 +38,13 @@ export default async function OrderDetailPage({
 
   const order = await getById(supabase, id);
   if (!order || order.customerId !== userId) notFound();
+
+  // VNPay/MoMo redirect the browser straight back to this exact page after
+  // payment — see the gateway return-redirect gap explained in
+  // lib/payments/return-status.ts. Verified server-side (never trust the
+  // redirect's own query params without checking the signature) before ever
+  // being used to fire an immediate toast/refresh.
+  const paymentReturnStatus = derivePaymentReturnStatus(await searchParams);
 
   // Same "missing table, not just a missing column" resilience exception
   // as combos/[id]/page.tsx — this page's core job (order status, QR code)
@@ -82,6 +93,12 @@ export default async function OrderDetailPage({
 
   return (
     <div className="mx-auto max-w-xl space-y-6 px-4 py-8">
+      <PaymentReturnWatcher
+        status={paymentReturnStatus}
+        alreadyConfirmed={isPaid}
+        successMessage="Thanh toán thành công! Đơn hàng của bạn đã được xác nhận."
+        failureMessage="Thanh toán không thành công hoặc đã bị huỷ. Bạn có thể thử lại bên dưới."
+      />
       {showSentBanner && (
         <div className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
           <CheckCircle2 className="size-5 shrink-0" />

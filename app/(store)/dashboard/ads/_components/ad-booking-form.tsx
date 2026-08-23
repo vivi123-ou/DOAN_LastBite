@@ -52,6 +52,19 @@ export function AdBookingForm({ storeId: storeId, placementTypes, combos }: AdBo
       return;
     }
 
+    // Real money, real gateway redirect, not reversible from inside this
+    // app once completed — same final confirm step as
+    // plan-payment-button.tsx, direct answer to "lỡ bấm nhầm là mất tiền".
+    if (
+      !window.confirm(
+        `Xác nhận thanh toán ${selectedType.price.toLocaleString("vi-VN")}đ cho "${selectedType.name}" qua ${
+          method === "momo" ? "MoMo" : "VNPAY"
+        }?`
+      )
+    ) {
+      return;
+    }
+
     const input: BookAdInput = {
       placementTypeId: selectedType.id,
       comboId: needsCombo ? comboId : undefined,

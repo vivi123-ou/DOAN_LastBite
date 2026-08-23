@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Sparkles, Star, TrendingUp, Flag } from "lucide-react";
+import { Sparkles, Star, TrendingUp, TrendingDown, Flag } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
@@ -75,6 +75,18 @@ export default async function MonthlyReportPage({
         />
         <StatCard label="Thực nhận" value={`${report.netRevenue.toLocaleString("vi-VN")}đ`} highlight />
       </div>
+
+      {(report.revenueGrowthPct !== null || report.orderCountGrowthPct !== null) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">So với tháng trước</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 text-sm">
+            <GrowthStat label="Doanh thu" pct={report.revenueGrowthPct} />
+            <GrowthStat label="Số đơn" pct={report.orderCountGrowthPct} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -155,5 +167,29 @@ function StatCard({ label, value, highlight }: { label: string; value: string; h
         <p className={`text-lg font-bold ${highlight ? "text-primary" : ""}`}>{value}</p>
       </CardContent>
     </Card>
+  );
+}
+
+// null means the previous month had zero orders — nothing meaningful to
+// compare against, shown as a plain "chưa có dữ liệu để so sánh" rather than
+// a fabricated percentage.
+function GrowthStat({ label, pct }: { label: string; pct: number | null }) {
+  if (pct === null) {
+    return (
+      <p>
+        {label}: <span className="text-muted-foreground">Chưa có dữ liệu tháng trước để so sánh</span>
+      </p>
+    );
+  }
+  const isUp = pct >= 0;
+  return (
+    <p className="flex items-center gap-1.5">
+      {label}:{" "}
+      <span className={`flex items-center gap-0.5 font-semibold ${isUp ? "text-primary" : "text-destructive"}`}>
+        {isUp ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+        {isUp ? "+" : ""}
+        {pct.toFixed(1)}%
+      </span>
+    </p>
   );
 }

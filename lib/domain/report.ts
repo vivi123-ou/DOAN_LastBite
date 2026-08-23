@@ -19,4 +19,10 @@ export interface MonthlyStoreReport {
   topRatedCombos: ComboRatingSummary[];
   lowestRatedCombos: ComboRatingSummary[];
   reportCount: number;
+  // Month-over-month comparison against the immediately-preceding calendar
+  // month — null when that prior month had zero orders (nothing meaningful
+  // to divide by, not shown as a fabricated "+/-∞%").
+  previousMonthRevenue: number;
+  revenueGrowthPct: number | null;
+  orderCountGrowthPct: number | null;
 }

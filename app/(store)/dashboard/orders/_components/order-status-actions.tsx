@@ -23,7 +23,12 @@ export function OrderStatusActions({
 }) {
   const [isPending, startTransition] = useTransition();
 
-  function handleUpdate(next: OrderStatus) {
+  function handleUpdate(next: OrderStatus, confirmMessage?: string) {
+    // Rejecting/cancelling notifies the customer and restores stock —
+    // real, customer-facing consequences a store owner shouldn't trigger
+    // with one accidental click. "Xác nhận"/"Bắt đầu chuẩn bị"/etc. stay
+    // single-click — those move an order forward, nothing to lose there.
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
     startTransition(async () => {
       try {
         await updateOrderStatusAction(orderId, next);
@@ -39,7 +44,12 @@ export function OrderStatusActions({
         <Button size="sm" disabled={isPending} onClick={() => handleUpdate("accepted")}>
           Xác nhận đơn
         </Button>
-        <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleUpdate("rejected")}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={isPending}
+          onClick={() => handleUpdate("rejected", "Từ chối đơn này? Khách sẽ được thông báo và hàng sẽ được hoàn lại kho.")}
+        >
           Từ chối
         </Button>
       </div>
@@ -62,7 +72,14 @@ export function OrderStatusActions({
         <Button size="sm" disabled={isPending || blockedByPayment} onClick={() => handleUpdate(next.status)}>
           {next.label}
         </Button>
-        <Button size="sm" variant="ghost" disabled={isPending} onClick={() => handleUpdate("cancelled")}>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={isPending}
+          onClick={() =>
+            handleUpdate("cancelled", "Huỷ đơn này? Khách sẽ được thông báo và hàng sẽ được hoàn lại kho.")
+          }
+        >
           Huỷ đơn
         </Button>
       </div>

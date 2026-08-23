@@ -44,6 +44,8 @@ export function TiersManager({ storeTiers, defaultTiers }: TiersManagerProps) {
   }
 
   async function handleDelete(tierId: string) {
+    if (!window.confirm("Xoá mức giảm giá này? Đơn mua chung đang áp dụng mức này sẽ quay về mức mặc định của hệ thống."))
+      return;
     setPendingId(tierId);
     try {
       await deleteTierAction(tierId);

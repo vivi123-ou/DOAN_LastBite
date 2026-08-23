@@ -11,6 +11,7 @@ import type { BuiltCombo } from "@/lib/factories/combo.builder";
 import { resolvePricingStrategy } from "@/lib/pricing/strategies/pricing-strategy.factory";
 import { computeStockBasedDecayPrice } from "@/lib/pricing/strategies/stock-based-decay.strategy";
 import { appEventBus } from "@/lib/events/app-events";
+import { create as createNotification } from "@/lib/repositories/notification.repository";
 
 type ComboRow = Database["public"]["Tables"]["combos"]["Row"];
 
@@ -497,4 +498,60 @@ export async function relist(
     storeId: combo.store_id,
     storeName: storeRow?.name ?? "",
   });
+}
+
+// New Basic+ perk — directly on-theme with this app's own food-waste
+// mission: warn a store while there's still time to act (discount harder,
+// push a notification) instead of the combo just quietly expiring unsold.
+// Same lazy, no-cron-infrastructure posture as every other time-based
+// check in this app (best-before locking, subscription/Net Zero point
+// expiry) — only runs when the store owner actually loads /dashboard, not
+// on a schedule.
+const EXPIRY_ALERT_WINDOW_MS = 2 * 3_600_000; // combos expiring within 2h
+const EXPIRY_ALERT_MIN_STOCK = 3; // not worth alerting over a couple of leftover units
+
+export async function checkAndNotifyComboExpiringSoon(
+  admin: SupabaseClient<Database>,
+  storeId: string
+): Promise<void> {
+  const now = new Date();
+  const soon = new Date(now.getTime() + EXPIRY_ALERT_WINDOW_MS);
+
+  const { data: combos, error } = await admin
+    .from("combos")
+    .select("id, name, best_before, remaining_stock, store_id")
+    .eq("store_id", storeId)
+    .eq("status", "active")
+    .gt("best_before", now.toISOString())
+    .lte("best_before", soon.toISOString())
+    .gte("remaining_stock", EXPIRY_ALERT_MIN_STOCK);
+  if (error) throw error;
+  if (combos.length === 0) return;
+
+  const { data: store } = await admin.from("stores").select("owner_id").eq("id", storeId).maybeSingle();
+  if (!store) return;
+
+  for (const combo of combos) {
+    // Deduped by (comboId, bestBefore) inside the notification payload —
+    // once a combo's best_before value changes (relisted with a fresh
+    // window), it's a genuinely new alert opportunity; the same
+    // still-unsold window is never re-notified twice.
+    const { data: existing } = await admin
+      .from("notifications")
+      .select("id")
+      .eq("user_id", store.owner_id)
+      .eq("type", "combo_expiring_soon")
+      .contains("payload", { comboId: combo.id, bestBefore: combo.best_before })
+      .limit(1);
+    if (existing && existing.length > 0) continue;
+
+    const minutesLeft = Math.round((new Date(combo.best_before).getTime() - now.getTime()) / 60_000);
+    await createNotification(admin, {
+      userId: store.owner_id,
+      type: "combo_expiring_soon",
+      title: `"${combo.name}" sắp hết hạn mà còn nhiều hàng`,
+      body: `Còn ${combo.remaining_stock} phần chưa bán, hết hạn trong khoảng ${minutesLeft} phút nữa. Cân nhắc giảm giá thêm để bán hết.`,
+      payload: { comboId: combo.id, bestBefore: combo.best_before },
+    }).catch(() => {});
+  }
 }

@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Eye, MousePointerClick } from "lucide-react";
 import { AdBookingForm } from "@/app/(store)/dashboard/ads/_components/ad-booking-form";
 import { CancelPendingBookingButton } from "@/app/(store)/dashboard/ads/_components/cancel-pending-booking-button";
+import { PaymentReturnWatcher } from "@/components/payment/payment-return-watcher";
+import { derivePaymentReturnStatus } from "@/lib/payments/return-status";
 
 const STATUS_LABEL: Record<string, string> = {
   pending_payment: "Chờ thanh toán",
@@ -22,13 +24,21 @@ const STATUS_LABEL: Record<string, string> = {
 // Deliberately its own separate mua-thêm product, not part of any
 // subscription tier (see CLAUDE.md's "Advertising features" decision) — any
 // store, on any plan including Free, can buy a slot here.
-export default async function StoreAdsPage() {
+export default async function StoreAdsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const supabase = await createClient();
   const userId = await getCurrentUserId(supabase);
   if (!userId) redirect("/login?next=/dashboard/ads");
 
   const store = await getStoreByOwnerId(supabase, userId);
   if (!store) redirect("/dashboard");
+
+  // Same gateway-return gap as orders/[id]/page.tsx and
+  // dashboard/subscription/page.tsx — see lib/payments/return-status.ts.
+  const paymentReturnStatus = derivePaymentReturnStatus(await searchParams);
 
   const admin = createAdminClient();
   const [placementTypes, combos, bookings] = await Promise.all([
@@ -37,9 +47,21 @@ export default async function StoreAdsPage() {
     listBookingsForStore(admin, store.id),
   ]);
   const activeCombos = combos.filter((c) => c.status === "active").map((c) => ({ id: c.id, name: c.name }));
+  // No single booking id to check against the return redirect (VNPay/MoMo's
+  // orderId here is per-attempt, not surfaced back to this page) — "no
+  // booking still sitting pending_payment" is a reasonable proxy for "the
+  // purchase that was just made already confirmed", good enough for a
+  // handful of ad bookings per store.
+  const noPendingBookings = bookings.every((b) => b.status !== "pending_payment");
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+      <PaymentReturnWatcher
+        status={paymentReturnStatus}
+        alreadyConfirmed={noPendingBookings}
+        successMessage="Thanh toán thành công! Quảng cáo của bạn đang được kích hoạt."
+        failureMessage="Thanh toán không thành công hoặc đã bị huỷ. Bạn có thể thử lại bên dưới."
+      />
       <div>
         <h1 className="text-2xl font-bold">Quảng cáo</h1>
         <p className="text-sm text-muted-foreground">

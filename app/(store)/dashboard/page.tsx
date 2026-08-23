@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
 import { getStoreMonthlyStats, getPeakSellingHour } from "@/lib/repositories/order.repository";
+import { checkAndNotifyComboExpiringSoon } from "@/lib/repositories/combo.repository";
 import { getStoreStats } from "@/lib/repositories/review.repository";
 import { getEffectiveSubscription } from "@/lib/repositories/subscription.repository";
 import { getStoreImpact } from "@/lib/repositories/net-zero.repository";
@@ -61,6 +62,14 @@ export default async function StoreDashboardPage() {
     effective.tier !== "free" ? getPeakSellingHour(supabase, store.id) : Promise.resolve(null),
     effective.tier === "premium" ? getStoreImpact(supabase, store.id) : Promise.resolve(null),
   ]);
+
+  // New Basic+ perk — lazy sweep, same no-cron posture as every other
+  // time-based check in this app: only runs when the store owner actually
+  // loads this page, not on a schedule. Fire-and-forget, never blocks the
+  // dashboard render over a notification hiccup.
+  if (effective.tier !== "free") {
+    void checkAndNotifyComboExpiringSoon(admin, store.id).catch(() => {});
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10">

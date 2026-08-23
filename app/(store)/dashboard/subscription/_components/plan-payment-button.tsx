@@ -12,12 +12,32 @@ import {
 // orders/[id]/_components/simulate-payment-button.tsx — reused pattern, not
 // a new payment UI concept, just for a different purchase (a subscription
 // plan instead of an order).
-export function PlanPaymentButton({ planId, label }: { planId: string; label: string }) {
+export function PlanPaymentButton({
+  planId,
+  label,
+  priceLabel,
+}: {
+  planId: string;
+  label: string;
+  // Optional — when given, shown in a final confirm before redirecting to
+  // the real gateway (real money, not reversible from inside this app once
+  // the customer completes it on MoMo/VNPay's own page). Direct answer to a
+  // live "lỡ bấm nhầm" concern: the method-tile step alone already requires
+  // one extra click, but a real amount stated plainly right before leaving
+  // the site is the actual safeguard against an accidental charge.
+  priceLabel?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [method, setMethod] = useState<"momo" | "vnpay">("momo");
   const [loading, setLoading] = useState(false);
 
   async function handlePay() {
+    if (
+      priceLabel &&
+      !window.confirm(`Xác nhận thanh toán ${priceLabel} qua ${method === "momo" ? "MoMo" : "VNPAY"}?`)
+    ) {
+      return;
+    }
     setLoading(true);
     try {
       const { payUrl } =

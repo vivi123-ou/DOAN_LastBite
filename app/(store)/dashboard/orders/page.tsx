@@ -1,13 +1,16 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth";
 import { getStoreByOwnerId } from "@/lib/repositories/store.repository";
 import { listForStore, listStatusHistoryForOrders } from "@/lib/repositories/order.repository";
+import { getEffectiveSubscription } from "@/lib/repositories/subscription.repository";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { OrderStatusActions } from "@/app/(store)/dashboard/orders/_components/order-status-actions";
 import { OrderStatusHistoryToggle } from "@/app/(store)/dashboard/orders/_components/order-status-history-toggle";
+import { ExportCsvButton } from "@/app/(store)/dashboard/orders/_components/export-csv-button";
 import type { OrderStatus } from "@/lib/domain/order";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -43,7 +46,10 @@ export default async function StoreOrdersPage({
   if (!store) redirect("/dashboard");
 
   const activeStatus = status as OrderStatus | undefined;
-  const orders = await listForStore(supabase, store.id, activeStatus);
+  const [orders, effective] = await Promise.all([
+    listForStore(supabase, store.id, activeStatus),
+    getEffectiveSubscription(createAdminClient(), store.id),
+  ]);
   // Same "missing table" resilience exception used elsewhere in this app
   // for new tables on pre-existing pages — degrades to no history shown
   // (the toggle just won't render) rather than 500ing the whole dashboard
@@ -55,7 +61,10 @@ export default async function StoreOrdersPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 py-10">
-      <h1 className="text-2xl font-bold">Đơn hàng đến</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold">Đơn hàng đến</h1>
+        {effective.tier !== "free" && <ExportCsvButton orders={orders} />}
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {TABS.map((tab) => (

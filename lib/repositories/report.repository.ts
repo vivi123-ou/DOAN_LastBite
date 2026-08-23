@@ -21,13 +21,30 @@ export async function getMonthlyStoreReport(
 ): Promise<MonthlyStoreReport> {
   const periodStart = new Date(year, month - 1, 1).toISOString();
   const periodEndExclusive = new Date(year, month, 1).toISOString();
+  // Previous calendar month, for the growth comparison below — handles a
+  // January request correctly (month=1 → new Date(year, 0, 1) is already
+  // January; new Date(year, -1, 1) rolls back to December of year-1, JS
+  // Date's own well-defined month-overflow behavior, not a special case
+  // that needs its own branch).
+  const prevPeriodStart = new Date(year, month - 2, 1).toISOString();
+  const prevPeriodEndExclusive = periodStart;
 
-  const [estimate, netZeroImpact, reviewStats, topSelling] = await Promise.all([
+  const [estimate, prevEstimate, netZeroImpact, reviewStats, topSelling] = await Promise.all([
     computeStoreCommissionEstimate(admin, storeId, periodStart, periodEndExclusive),
+    computeStoreCommissionEstimate(admin, storeId, prevPeriodStart, prevPeriodEndExclusive),
     getStoreImpact(admin, storeId, periodStart, periodEndExclusive),
     getStoreStats(admin, storeId, periodStart, periodEndExclusive),
     getTopSellingCombos(admin, storeId, periodStart, periodEndExclusive),
   ]);
+
+  const revenueGrowthPct =
+    prevEstimate.grossRevenue > 0
+      ? ((estimate.grossRevenue - prevEstimate.grossRevenue) / prevEstimate.grossRevenue) * 100
+      : null;
+  const orderCountGrowthPct =
+    prevEstimate.orderCount > 0
+      ? ((estimate.orderCount - prevEstimate.orderCount) / prevEstimate.orderCount) * 100
+      : null;
 
   return {
     year,
@@ -43,6 +60,9 @@ export async function getMonthlyStoreReport(
     topRatedCombos: reviewStats.topRated,
     lowestRatedCombos: reviewStats.lowestRated,
     reportCount: reviewStats.reportCount,
+    previousMonthRevenue: prevEstimate.grossRevenue,
+    revenueGrowthPct,
+    orderCountGrowthPct,
   };
 }
 
