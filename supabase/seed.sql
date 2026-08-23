@@ -3,13 +3,19 @@
 -- .claude/rules/business-rules.md: drinks, snacks/desserts, cooked/prepared
 -- food only — never raw perishable ingredients.
 
+-- Default lock durations reflect realistic shelf life per category, not a
+-- flat number for everything — a sealed drink genuinely keeps far longer
+-- than hot cooked food in Vietnam's climate (business-rules.md's mandatory
+-- "never later than the category's own suggested time" cap is unchanged;
+-- only what each category suggests was revisited here, see 0038's own
+-- comment for the live bug report that prompted this).
 insert into categories (name, slug, default_lock_duration_minutes) values
-  ('Trà sữa & nước uống', 'tra-sua-nuoc-uong', 120),
-  ('Cà phê', 'ca-phe', 120),
-  ('Bánh ngọt & tráng miệng', 'banh-ngot-trang-mieng', 180),
+  ('Trà sữa & nước uống', 'tra-sua-nuoc-uong', 480),
+  ('Cà phê', 'ca-phe', 480),
+  ('Bánh ngọt & tráng miệng', 'banh-ngot-trang-mieng', 360),
   ('Đồ nướng', 'do-nuong', 240),
   ('Cơm & đồ ăn chín', 'com-do-an-chin', 180),
-  ('Đồ ăn vặt', 'do-an-vat', 180)
+  ('Đồ ăn vặt', 'do-an-vat', 300)
 on conflict (slug) do update set
   name = excluded.name,
   default_lock_duration_minutes = excluded.default_lock_duration_minutes;

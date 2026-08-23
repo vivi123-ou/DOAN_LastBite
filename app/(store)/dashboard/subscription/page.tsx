@@ -21,6 +21,28 @@ const TIER_LABEL: Record<SubscriptionTier, string> = {
   premium: "Premium",
 };
 
+// A real, exhaustive list of what each tier actually does — not just the
+// combo-count number already shown separately. Each tier's list already
+// includes everything the tier below it has (Premium = Basic's perks +
+// its own), matching how the gating checks in dashboard/page.tsx,
+// dashboard/combos/page.tsx, combos/[id]/page.tsx, and dashboard/reports
+// actually work (tier !== 'free' for peak hour, tier === 'premium' for
+// everything else). Written out explicitly per direct feedback — a bare
+// "Tối đa N combo" line wasn't nearly enough detail to justify buying a
+// paid plan.
+const TIER_FEATURES: Record<SubscriptionTier, string[]> = {
+  free: ["Đăng bán combo, quản lý đơn hàng cơ bản"],
+  basic: ["Mọi tính năng của Free", "Xem khung giờ bán chạy nhất trong 30 ngày qua"],
+  premium: [
+    "Mọi tính năng của Basic",
+    "Không giới hạn số combo đang bán cùng lúc",
+    "Báo cáo tác động Net Zero (kg CO2, kg thực phẩm) của cửa hàng",
+    "Gợi ý số lượng nên nhập khi bán lại (dựa trên doanh số thực tế 7 ngày)",
+    "Huy hiệu \"Đối tác Premium\" hiển thị trên trang combo",
+    "Báo cáo doanh thu & hoa hồng đầy đủ theo tháng",
+  ],
+};
+
 // Ordered so the layout below reads Free → Basic → Premium regardless of
 // exact insertion order in the DB.
 const TIER_ORDER: SubscriptionTier[] = ["free", "basic", "premium"];
@@ -127,6 +149,17 @@ export default async function StoreSubscriptionPage() {
               <h3 className="text-center text-sm font-semibold text-muted-foreground">
                 {TIER_LABEL[tier]}
               </h3>
+              {/* Shared across every plan (monthly/yearly) within this tier
+                  — the feature set is the same regardless of billing
+                  period, only price/duration differ per plan card below. */}
+              <ul className="space-y-1.5 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                {TIER_FEATURES[tier].map((feature) => (
+                  <li key={feature} className="flex items-start gap-1.5">
+                    <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
               {(plansByTier.get(tier) ?? []).map((plan) => {
                 const isCurrent = plan.name === effective.planName && !effective.locked;
                 return (
