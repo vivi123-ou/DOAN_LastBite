@@ -6,10 +6,16 @@
 -- project uses PostGIS for geo search, see stores.geog/addresses.geog) — it
 -- only holds public spatial-reference-system definitions (EPSG codes etc.),
 -- not any user/business data, so this was never an actual data exposure.
--- Still worth silencing properly rather than ignoring: enable RLS with a
--- permissive read-only policy, exactly Supabase's own documented fix for
--- this common PostGIS-project case.
-alter table public.spatial_ref_sys enable row level security;
-
-create policy spatial_ref_sys_public_read on public.spatial_ref_sys
-  for select using (true);
+-- First attempt (enable row level security) failed live with
+-- `42501: must be owner of table spatial_ref_sys` — this table is owned by
+-- the PostGIS extension's installing role, not the project's own postgres
+-- role, so ALTER TABLE on it is blocked regardless of who runs it in the
+-- Supabase SQL editor. This is a known, documented Supabase/PostGIS
+-- platform limitation, not something specific to this project's setup.
+--
+-- Workaround that doesn't need table ownership: REVOKE is a privilege
+-- operation, not DDL on the object itself, so it can succeed even when
+-- ALTER TABLE can't. This removes the PostgREST API roles' ability to read
+-- the table at all (the same practical effect as RLS blocking access),
+-- without needing to touch the table's own RLS setting.
+revoke all on public.spatial_ref_sys from anon, authenticated;
